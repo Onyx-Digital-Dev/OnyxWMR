@@ -1,0 +1,18 @@
+[package]
+name = "osv-bar"
+version.workspace = true
+description = "Minimal status bar for osvwm"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "osv-bar"
+path = "src/main.rs"
+
+[dependencies]
+osv-ipc = { version = "0.1.0", path = "../osv-ipc" }
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true

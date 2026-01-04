@@ -1,0 +1,19 @@
+[package]
+name = "osv-msg"
+version.workspace = true
+description = "IPC CLI tool for osvwm"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "osv-msg"
+path = "src/main.rs"
+
+[dependencies]
+osv-ipc = { version = "0.1.0", path = "../osv-ipc" }
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true

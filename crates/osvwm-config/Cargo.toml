@@ -1,5 +1,5 @@
 [package]
-name = "niri-config"
+name = "osvwm-config"
 version.workspace = true
 description.workspace = true
 authors.workspace = true
@@ -12,7 +12,7 @@ bitflags.workspace = true
 csscolorparser = "0.8.1"
 knuffel = "3.2.0"
 miette = { version = "5.10.0", features = ["fancy-no-backtrace"] }
-niri-ipc = { version = "25.11.0", path = "../niri-ipc" }
+osv-ipc = { version = "0.1.0", path = "../osv-ipc" }
 regex = "1.12.2"
 smithay = { workspace = true, features = ["backend_libinput"] }
 tracing.workspace = true
