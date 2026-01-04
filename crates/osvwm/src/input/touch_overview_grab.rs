@@ -10,7 +10,7 @@ use smithay::output::Output;
 use smithay::utils::{IsAlive, Logical, Point, Serial};
 
 use crate::layout::workspace::{Workspace, WorkspaceId};
-use crate::niri::State;
+use crate::osvwm::State;
 use crate::window::Mapped;
 
 // When the touch is stationary for this much time, it becomes an interactive move.
@@ -60,7 +60,7 @@ impl TouchOverviewGrab {
     }
 
     fn on_ungrab(&mut self, state: &mut State) {
-        let layout = &mut state.niri.layout;
+        let layout = &mut state.osvwm.layout;
         match self.gesture {
             GestureState::Recognizing => {
                 // Tap to activate.
@@ -109,7 +109,7 @@ impl TouchOverviewGrab {
             }
         };
 
-        state.niri.queue_redraw_all();
+        state.osvwm.queue_redraw_all();
     }
 }
 

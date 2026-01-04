@@ -12,7 +12,7 @@ use anyhow::{ensure, Context};
 use bitflags::bitflags;
 use directories::UserDirs;
 use git_version::git_version;
-use niri_config::{Config, OutputName};
+use osvwm_config::{Config, OutputName};
 use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::CursorIcon;
 use smithay::output::{self, Output};
@@ -31,7 +31,7 @@ use smithay::wayland::shell::xdg::{
 use wayland_backend::server::Credentials;
 
 use crate::handlers::KdeDecorationsModeState;
-use crate::niri::ClientState;
+use crate::osvwm::ClientState;
 
 pub mod id;
 pub mod scale;
@@ -151,20 +151,20 @@ pub fn output_size(output: &Output) -> Size<f64, Logical> {
     output_transform.transform_size(logical_size)
 }
 
-pub fn logical_output(output: &Output) -> niri_ipc::LogicalOutput {
+pub fn logical_output(output: &Output) -> osv_ipc::LogicalOutput {
     let loc = output.current_location();
     let size = output_size(output);
     let transform = match output.current_transform() {
-        Transform::Normal => niri_ipc::Transform::Normal,
-        Transform::_90 => niri_ipc::Transform::_90,
-        Transform::_180 => niri_ipc::Transform::_180,
-        Transform::_270 => niri_ipc::Transform::_270,
-        Transform::Flipped => niri_ipc::Transform::Flipped,
-        Transform::Flipped90 => niri_ipc::Transform::Flipped90,
-        Transform::Flipped180 => niri_ipc::Transform::Flipped180,
-        Transform::Flipped270 => niri_ipc::Transform::Flipped270,
+        Transform::Normal => osv_ipc::Transform::Normal,
+        Transform::_90 => osv_ipc::Transform::_90,
+        Transform::_180 => osv_ipc::Transform::_180,
+        Transform::_270 => osv_ipc::Transform::_270,
+        Transform::Flipped => osv_ipc::Transform::Flipped,
+        Transform::Flipped90 => osv_ipc::Transform::Flipped90,
+        Transform::Flipped180 => osv_ipc::Transform::Flipped180,
+        Transform::Flipped270 => osv_ipc::Transform::Flipped270,
     };
-    niri_ipc::LogicalOutput {
+    osv_ipc::LogicalOutput {
         x: loc.x,
         y: loc.y,
         width: size.w as u32,
@@ -183,16 +183,16 @@ pub fn panel_orientation(output: &Output) -> Transform {
         .unwrap_or(Transform::Normal)
 }
 
-pub fn ipc_transform_to_smithay(transform: niri_ipc::Transform) -> Transform {
+pub fn ipc_transform_to_smithay(transform: osv_ipc::Transform) -> Transform {
     match transform {
-        niri_ipc::Transform::Normal => Transform::Normal,
-        niri_ipc::Transform::_90 => Transform::_90,
-        niri_ipc::Transform::_180 => Transform::_180,
-        niri_ipc::Transform::_270 => Transform::_270,
-        niri_ipc::Transform::Flipped => Transform::Flipped,
-        niri_ipc::Transform::Flipped90 => Transform::Flipped90,
-        niri_ipc::Transform::Flipped180 => Transform::Flipped180,
-        niri_ipc::Transform::Flipped270 => Transform::Flipped270,
+        osv_ipc::Transform::Normal => Transform::Normal,
+        osv_ipc::Transform::_90 => Transform::_90,
+        osv_ipc::Transform::_180 => Transform::_180,
+        osv_ipc::Transform::_270 => Transform::_270,
+        osv_ipc::Transform::Flipped => Transform::Flipped,
+        osv_ipc::Transform::Flipped90 => Transform::Flipped90,
+        osv_ipc::Transform::Flipped180 => Transform::Flipped180,
+        osv_ipc::Transform::Flipped270 => Transform::Flipped270,
     }
 }
 
@@ -505,7 +505,7 @@ pub fn show_screenshot_notification(image_path: Option<&Path>) -> anyhow::Result
         Some("org.freedesktop.Notifications"),
         "Notify",
         &(
-            "niri",
+            "osvwm",
             0u32,
             image_url.as_ref().map(|url| url.as_str()).unwrap_or(""),
             "Screenshot captured",

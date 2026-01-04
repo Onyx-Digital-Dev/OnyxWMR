@@ -1,4 +1,4 @@
-use niri_ipc::ColumnDisplay;
+use osv_ipc::ColumnDisplay;
 
 use crate::appearance::{BlockOutFrom, BorderRule, CornerRadius, ShadowRule, TabIndicatorRule};
 use crate::layout::DefaultPresetSize;

@@ -7,7 +7,7 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Context as _;
-use niri_config::OutputName;
+use osvwm_config::OutputName;
 use smithay::backend::allocator::dmabuf::Dmabuf;
 use smithay::backend::egl::native::EGLSurfacelessDisplay;
 use smithay::backend::egl::{EGLContext, EGLDisplay};
@@ -19,7 +19,7 @@ use smithay::utils::Size;
 use smithay::wayland::presentation::Refresh;
 
 use super::{IpcOutputMap, OutputId, RenderResult};
-use crate::niri::{Niri, RedrawState};
+use crate::osvwm::{Niri, RedrawState};
 use crate::render_helpers::{resources, shaders};
 use crate::utils::{get_monotonic_time, logical_output};
 
@@ -36,7 +36,7 @@ impl Headless {
         }
     }
 
-    pub fn init(&mut self, _niri: &mut Niri) {}
+    pub fn init(&mut self, _osvwm: &mut Osvwm) {}
 
     pub fn add_renderer(&mut self) -> anyhow::Result<()> {
         if self.renderer.is_some() {
@@ -58,9 +58,9 @@ impl Headless {
         Ok(())
     }
 
-    pub fn add_output(&mut self, niri: &mut Niri, n: u8, size: (u16, u16)) {
+    pub fn add_output(&mut self, osvwm: &mut Osvwm, n: u8, size: (u16, u16)) {
         let connector = format!("headless-{n}");
-        let make = "niri".to_string();
+        let make = "osvwm".to_string();
         let model = "headless".to_string();
         let serial = n.to_string();
 
@@ -92,13 +92,13 @@ impl Headless {
         let physical_properties = output.physical_properties();
         self.ipc_outputs.lock().unwrap().insert(
             OutputId::next(),
-            niri_ipc::Output {
+            osv_ipc::Output {
                 name: output.name(),
                 make: physical_properties.make,
                 model: physical_properties.model,
                 serial: None,
                 physical_size: None,
-                modes: vec![niri_ipc::Mode {
+                modes: vec![osv_ipc::Mode {
                     width: size.0,
                     height: size.1,
                     refresh_rate: 60_000,
@@ -126,7 +126,7 @@ impl Headless {
         self.renderer.as_mut().map(f)
     }
 
-    pub fn render(&mut self, niri: &mut Niri, output: &Output) -> RenderResult {
+    pub fn render(&mut self, osvwm: &mut Osvwm, output: &Output) -> RenderResult {
         let states = RenderElementStates::default();
         let mut presentation_feedbacks = niri.take_presentation_feedbacks(output, &states);
         presentation_feedbacks.presented::<_, smithay::utils::Monotonic>(

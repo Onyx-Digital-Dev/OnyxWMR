@@ -1,4 +1,4 @@
-use niri_ipc::PickedColor;
+use osv_ipc::PickedColor;
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::input::ButtonState;
 use smithay::backend::renderer::element::utils::{Relocate, RelocateRenderElement};
@@ -11,7 +11,7 @@ use smithay::input::pointer::{
 use smithay::input::SeatHandler;
 use smithay::utils::{Logical, Physical, Point, Scale, Size, Transform};
 
-use crate::niri::State;
+use crate::osvwm::State;
 use crate::render_helpers::{render_to_vec, RenderTarget};
 
 pub struct PickColorGrab {
@@ -24,14 +24,14 @@ impl PickColorGrab {
     }
 
     fn on_ungrab(&mut self, state: &mut State) {
-        if let Some(tx) = state.niri.pick_color.take() {
+        if let Some(tx) = state.osvwm.pick_color.take() {
             let _ = tx.send_blocking(None);
         }
         state
             .niri
             .cursor_manager
             .set_cursor_image(CursorImageStatus::default_named());
-        state.niri.queue_redraw_all();
+        state.osvwm.queue_redraw_all();
     }
 
     fn pick_color_at_point(location: Point<f64, Logical>, data: &mut State) -> Option<PickedColor> {

@@ -47,7 +47,7 @@ use smithay::utils::{Physical, Scale, Size, Transform};
 use zbus::object_server::SignalEmitter;
 
 use crate::dbus::mutter_screen_cast::{self, CursorMode};
-use crate::niri::{CastTarget, State};
+use crate::osvwm::{CastTarget, State};
 use crate::render_helpers::{clear_dmabuf, render_to_dmabuf};
 use crate::utils::get_monotonic_time;
 
@@ -59,10 +59,10 @@ pub struct PipeWire {
     pub core: CoreRc,
     pub token: RegistrationToken,
     event_loop: LoopHandle<'static, State>,
-    to_niri: calloop::channel::Sender<PwToNiri>,
+    to_niri: calloop::channel::Sender<PwToOsvwm>,
 }
 
-pub enum PwToNiri {
+pub enum PwToOsvwm {
     StopCast { session_id: usize },
     Redraw { stream_id: usize },
     FatalError,
@@ -156,7 +156,7 @@ macro_rules! make_params {
 impl PipeWire {
     pub fn new(
         event_loop: LoopHandle<'static, State>,
-        to_niri: calloop::channel::Sender<PwToNiri>,
+        to_niri: calloop::channel::Sender<PwToOsvwm>,
     ) -> anyhow::Result<Self> {
         let main_loop = MainLoopRc::new(None).context("error creating MainLoop")?;
         let context = ContextRc::new(&main_loop, None).context("error creating Context")?;
@@ -170,7 +170,7 @@ impl PipeWire {
 
                 // Reset PipeWire on connection errors.
                 if id == PW_ID_CORE && res == -32 {
-                    if let Err(err) = to_niri_.send(PwToNiri::FatalError) {
+                    if let Err(err) = to_niri_.send(PwToOsvwm::FatalError) {
                         warn!("error sending FatalError to niri: {err:?}");
                     }
                 }
@@ -221,13 +221,13 @@ impl PipeWire {
 
         let to_niri_ = self.to_niri.clone();
         let stop_cast = move || {
-            if let Err(err) = to_niri_.send(PwToNiri::StopCast { session_id }) {
+            if let Err(err) = to_niri_.send(PwToOsvwm::StopCast { session_id }) {
                 warn!(session_id, "error sending StopCast to niri: {err:?}");
             }
         };
         let to_niri_ = self.to_niri.clone();
         let redraw = move || {
-            if let Err(err) = to_niri_.send(PwToNiri::Redraw { stream_id }) {
+            if let Err(err) = to_niri_.send(PwToOsvwm::Redraw { stream_id }) {
                 warn!(stream_id, "error sending Redraw to niri: {err:?}");
             }
         };
@@ -843,8 +843,8 @@ impl Cast {
             .event_loop
             .insert_source(timer, move |_, _, state| {
                 // Guard against output disconnecting before the timer has a chance to run.
-                if state.niri.output_state.contains_key(&output) {
-                    state.niri.queue_redraw(&output);
+                if state.osvwm.output_state.contains_key(&output) {
+                    state.osvwm.queue_redraw(&output);
                 }
 
                 TimeoutAction::Drop
@@ -947,7 +947,7 @@ impl Cast {
                 let source = Generic::new(sync_fd, Interest::READ, Mode::OneShot);
                 self.event_loop
                     .insert_source(source, move |_, _, state| {
-                        for cast in &mut state.niri.casts {
+                        for cast in &mut state.osvwm.casts {
                             if cast.stream_id == stream_id {
                                 cast.queue_completed_buffers();
                             }

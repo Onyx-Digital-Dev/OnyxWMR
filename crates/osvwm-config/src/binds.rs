@@ -5,7 +5,7 @@ use std::time::Duration;
 use bitflags::bitflags;
 use knuffel::errors::DecodeError;
 use miette::miette;
-use niri_ipc::{
+use osv_ipc::{
     ColumnDisplay, LayoutSwitchTarget, PositionChange, SizeChange, WorkspaceReferenceArg,
 };
 use smithay::input::keyboard::keysyms::KEY_NoSymbol;
@@ -387,29 +387,29 @@ pub enum Action {
     MruCycleScope,
 }
 
-impl From<niri_ipc::Action> for Action {
-    fn from(value: niri_ipc::Action) -> Self {
+impl From<osv_ipc::Action> for Action {
+    fn from(value: osv_ipc::Action) -> Self {
         match value {
-            niri_ipc::Action::Quit { skip_confirmation } => Self::Quit(skip_confirmation),
-            niri_ipc::Action::PowerOffMonitors {} => Self::PowerOffMonitors,
-            niri_ipc::Action::PowerOnMonitors {} => Self::PowerOnMonitors,
-            niri_ipc::Action::Spawn { command } => Self::Spawn(command),
-            niri_ipc::Action::SpawnSh { command } => Self::SpawnSh(command),
-            niri_ipc::Action::DoScreenTransition { delay_ms } => Self::DoScreenTransition(delay_ms),
-            niri_ipc::Action::Screenshot { show_pointer, path } => {
+            osv_ipc::Action::Quit { skip_confirmation } => Self::Quit(skip_confirmation),
+            osv_ipc::Action::PowerOffMonitors {} => Self::PowerOffMonitors,
+            osv_ipc::Action::PowerOnMonitors {} => Self::PowerOnMonitors,
+            osv_ipc::Action::Spawn { command } => Self::Spawn(command),
+            osv_ipc::Action::SpawnSh { command } => Self::SpawnSh(command),
+            osv_ipc::Action::DoScreenTransition { delay_ms } => Self::DoScreenTransition(delay_ms),
+            osv_ipc::Action::Screenshot { show_pointer, path } => {
                 Self::Screenshot(show_pointer, path)
             }
-            niri_ipc::Action::ScreenshotScreen {
+            osv_ipc::Action::ScreenshotScreen {
                 write_to_disk,
                 show_pointer,
                 path,
             } => Self::ScreenshotScreen(write_to_disk, show_pointer, path),
-            niri_ipc::Action::ScreenshotWindow {
+            osv_ipc::Action::ScreenshotWindow {
                 id: None,
                 write_to_disk,
                 path,
             } => Self::ScreenshotWindow(write_to_disk, path),
-            niri_ipc::Action::ScreenshotWindow {
+            osv_ipc::Action::ScreenshotWindow {
                 id: Some(id),
                 write_to_disk,
                 path,
@@ -418,102 +418,102 @@ impl From<niri_ipc::Action> for Action {
                 write_to_disk,
                 path,
             },
-            niri_ipc::Action::ToggleKeyboardShortcutsInhibit {} => {
+            osv_ipc::Action::ToggleKeyboardShortcutsInhibit {} => {
                 Self::ToggleKeyboardShortcutsInhibit
             }
-            niri_ipc::Action::CloseWindow { id: None } => Self::CloseWindow,
-            niri_ipc::Action::CloseWindow { id: Some(id) } => Self::CloseWindowById(id),
-            niri_ipc::Action::FullscreenWindow { id: None } => Self::FullscreenWindow,
-            niri_ipc::Action::FullscreenWindow { id: Some(id) } => Self::FullscreenWindowById(id),
-            niri_ipc::Action::ToggleWindowedFullscreen { id: None } => {
+            osv_ipc::Action::CloseWindow { id: None } => Self::CloseWindow,
+            osv_ipc::Action::CloseWindow { id: Some(id) } => Self::CloseWindowById(id),
+            osv_ipc::Action::FullscreenWindow { id: None } => Self::FullscreenWindow,
+            osv_ipc::Action::FullscreenWindow { id: Some(id) } => Self::FullscreenWindowById(id),
+            osv_ipc::Action::ToggleWindowedFullscreen { id: None } => {
                 Self::ToggleWindowedFullscreen
             }
-            niri_ipc::Action::ToggleWindowedFullscreen { id: Some(id) } => {
+            osv_ipc::Action::ToggleWindowedFullscreen { id: Some(id) } => {
                 Self::ToggleWindowedFullscreenById(id)
             }
-            niri_ipc::Action::FocusWindow { id } => Self::FocusWindow(id),
-            niri_ipc::Action::FocusWindowInColumn { index } => Self::FocusWindowInColumn(index),
-            niri_ipc::Action::FocusWindowPrevious {} => Self::FocusWindowPrevious,
-            niri_ipc::Action::FocusColumnLeft {} => Self::FocusColumnLeft,
-            niri_ipc::Action::FocusColumnRight {} => Self::FocusColumnRight,
-            niri_ipc::Action::FocusColumnFirst {} => Self::FocusColumnFirst,
-            niri_ipc::Action::FocusColumnLast {} => Self::FocusColumnLast,
-            niri_ipc::Action::FocusColumnRightOrFirst {} => Self::FocusColumnRightOrFirst,
-            niri_ipc::Action::FocusColumnLeftOrLast {} => Self::FocusColumnLeftOrLast,
-            niri_ipc::Action::FocusColumn { index } => Self::FocusColumn(index),
-            niri_ipc::Action::FocusWindowOrMonitorUp {} => Self::FocusWindowOrMonitorUp,
-            niri_ipc::Action::FocusWindowOrMonitorDown {} => Self::FocusWindowOrMonitorDown,
-            niri_ipc::Action::FocusColumnOrMonitorLeft {} => Self::FocusColumnOrMonitorLeft,
-            niri_ipc::Action::FocusColumnOrMonitorRight {} => Self::FocusColumnOrMonitorRight,
-            niri_ipc::Action::FocusWindowDown {} => Self::FocusWindowDown,
-            niri_ipc::Action::FocusWindowUp {} => Self::FocusWindowUp,
-            niri_ipc::Action::FocusWindowDownOrColumnLeft {} => Self::FocusWindowDownOrColumnLeft,
-            niri_ipc::Action::FocusWindowDownOrColumnRight {} => Self::FocusWindowDownOrColumnRight,
-            niri_ipc::Action::FocusWindowUpOrColumnLeft {} => Self::FocusWindowUpOrColumnLeft,
-            niri_ipc::Action::FocusWindowUpOrColumnRight {} => Self::FocusWindowUpOrColumnRight,
-            niri_ipc::Action::FocusWindowOrWorkspaceDown {} => Self::FocusWindowOrWorkspaceDown,
-            niri_ipc::Action::FocusWindowOrWorkspaceUp {} => Self::FocusWindowOrWorkspaceUp,
-            niri_ipc::Action::FocusWindowTop {} => Self::FocusWindowTop,
-            niri_ipc::Action::FocusWindowBottom {} => Self::FocusWindowBottom,
-            niri_ipc::Action::FocusWindowDownOrTop {} => Self::FocusWindowDownOrTop,
-            niri_ipc::Action::FocusWindowUpOrBottom {} => Self::FocusWindowUpOrBottom,
-            niri_ipc::Action::MoveColumnLeft {} => Self::MoveColumnLeft,
-            niri_ipc::Action::MoveColumnRight {} => Self::MoveColumnRight,
-            niri_ipc::Action::MoveColumnToFirst {} => Self::MoveColumnToFirst,
-            niri_ipc::Action::MoveColumnToLast {} => Self::MoveColumnToLast,
-            niri_ipc::Action::MoveColumnToIndex { index } => Self::MoveColumnToIndex(index),
-            niri_ipc::Action::MoveColumnLeftOrToMonitorLeft {} => {
+            osv_ipc::Action::FocusWindow { id } => Self::FocusWindow(id),
+            osv_ipc::Action::FocusWindowInColumn { index } => Self::FocusWindowInColumn(index),
+            osv_ipc::Action::FocusWindowPrevious {} => Self::FocusWindowPrevious,
+            osv_ipc::Action::FocusColumnLeft {} => Self::FocusColumnLeft,
+            osv_ipc::Action::FocusColumnRight {} => Self::FocusColumnRight,
+            osv_ipc::Action::FocusColumnFirst {} => Self::FocusColumnFirst,
+            osv_ipc::Action::FocusColumnLast {} => Self::FocusColumnLast,
+            osv_ipc::Action::FocusColumnRightOrFirst {} => Self::FocusColumnRightOrFirst,
+            osv_ipc::Action::FocusColumnLeftOrLast {} => Self::FocusColumnLeftOrLast,
+            osv_ipc::Action::FocusColumn { index } => Self::FocusColumn(index),
+            osv_ipc::Action::FocusWindowOrMonitorUp {} => Self::FocusWindowOrMonitorUp,
+            osv_ipc::Action::FocusWindowOrMonitorDown {} => Self::FocusWindowOrMonitorDown,
+            osv_ipc::Action::FocusColumnOrMonitorLeft {} => Self::FocusColumnOrMonitorLeft,
+            osv_ipc::Action::FocusColumnOrMonitorRight {} => Self::FocusColumnOrMonitorRight,
+            osv_ipc::Action::FocusWindowDown {} => Self::FocusWindowDown,
+            osv_ipc::Action::FocusWindowUp {} => Self::FocusWindowUp,
+            osv_ipc::Action::FocusWindowDownOrColumnLeft {} => Self::FocusWindowDownOrColumnLeft,
+            osv_ipc::Action::FocusWindowDownOrColumnRight {} => Self::FocusWindowDownOrColumnRight,
+            osv_ipc::Action::FocusWindowUpOrColumnLeft {} => Self::FocusWindowUpOrColumnLeft,
+            osv_ipc::Action::FocusWindowUpOrColumnRight {} => Self::FocusWindowUpOrColumnRight,
+            osv_ipc::Action::FocusWindowOrWorkspaceDown {} => Self::FocusWindowOrWorkspaceDown,
+            osv_ipc::Action::FocusWindowOrWorkspaceUp {} => Self::FocusWindowOrWorkspaceUp,
+            osv_ipc::Action::FocusWindowTop {} => Self::FocusWindowTop,
+            osv_ipc::Action::FocusWindowBottom {} => Self::FocusWindowBottom,
+            osv_ipc::Action::FocusWindowDownOrTop {} => Self::FocusWindowDownOrTop,
+            osv_ipc::Action::FocusWindowUpOrBottom {} => Self::FocusWindowUpOrBottom,
+            osv_ipc::Action::MoveColumnLeft {} => Self::MoveColumnLeft,
+            osv_ipc::Action::MoveColumnRight {} => Self::MoveColumnRight,
+            osv_ipc::Action::MoveColumnToFirst {} => Self::MoveColumnToFirst,
+            osv_ipc::Action::MoveColumnToLast {} => Self::MoveColumnToLast,
+            osv_ipc::Action::MoveColumnToIndex { index } => Self::MoveColumnToIndex(index),
+            osv_ipc::Action::MoveColumnLeftOrToMonitorLeft {} => {
                 Self::MoveColumnLeftOrToMonitorLeft
             }
-            niri_ipc::Action::MoveColumnRightOrToMonitorRight {} => {
+            osv_ipc::Action::MoveColumnRightOrToMonitorRight {} => {
                 Self::MoveColumnRightOrToMonitorRight
             }
-            niri_ipc::Action::MoveWindowDown {} => Self::MoveWindowDown,
-            niri_ipc::Action::MoveWindowUp {} => Self::MoveWindowUp,
-            niri_ipc::Action::MoveWindowDownOrToWorkspaceDown {} => {
+            osv_ipc::Action::MoveWindowDown {} => Self::MoveWindowDown,
+            osv_ipc::Action::MoveWindowUp {} => Self::MoveWindowUp,
+            osv_ipc::Action::MoveWindowDownOrToWorkspaceDown {} => {
                 Self::MoveWindowDownOrToWorkspaceDown
             }
-            niri_ipc::Action::MoveWindowUpOrToWorkspaceUp {} => Self::MoveWindowUpOrToWorkspaceUp,
-            niri_ipc::Action::ConsumeOrExpelWindowLeft { id: None } => {
+            osv_ipc::Action::MoveWindowUpOrToWorkspaceUp {} => Self::MoveWindowUpOrToWorkspaceUp,
+            osv_ipc::Action::ConsumeOrExpelWindowLeft { id: None } => {
                 Self::ConsumeOrExpelWindowLeft
             }
-            niri_ipc::Action::ConsumeOrExpelWindowLeft { id: Some(id) } => {
+            osv_ipc::Action::ConsumeOrExpelWindowLeft { id: Some(id) } => {
                 Self::ConsumeOrExpelWindowLeftById(id)
             }
-            niri_ipc::Action::ConsumeOrExpelWindowRight { id: None } => {
+            osv_ipc::Action::ConsumeOrExpelWindowRight { id: None } => {
                 Self::ConsumeOrExpelWindowRight
             }
-            niri_ipc::Action::ConsumeOrExpelWindowRight { id: Some(id) } => {
+            osv_ipc::Action::ConsumeOrExpelWindowRight { id: Some(id) } => {
                 Self::ConsumeOrExpelWindowRightById(id)
             }
-            niri_ipc::Action::ConsumeWindowIntoColumn {} => Self::ConsumeWindowIntoColumn,
-            niri_ipc::Action::ExpelWindowFromColumn {} => Self::ExpelWindowFromColumn,
-            niri_ipc::Action::SwapWindowRight {} => Self::SwapWindowRight,
-            niri_ipc::Action::SwapWindowLeft {} => Self::SwapWindowLeft,
-            niri_ipc::Action::ToggleColumnTabbedDisplay {} => Self::ToggleColumnTabbedDisplay,
-            niri_ipc::Action::SetColumnDisplay { display } => Self::SetColumnDisplay(display),
-            niri_ipc::Action::CenterColumn {} => Self::CenterColumn,
-            niri_ipc::Action::CenterWindow { id: None } => Self::CenterWindow,
-            niri_ipc::Action::CenterWindow { id: Some(id) } => Self::CenterWindowById(id),
-            niri_ipc::Action::CenterVisibleColumns {} => Self::CenterVisibleColumns,
-            niri_ipc::Action::FocusWorkspaceDown {} => Self::FocusWorkspaceDown,
-            niri_ipc::Action::FocusWorkspaceUp {} => Self::FocusWorkspaceUp,
-            niri_ipc::Action::FocusWorkspace { reference } => {
+            osv_ipc::Action::ConsumeWindowIntoColumn {} => Self::ConsumeWindowIntoColumn,
+            osv_ipc::Action::ExpelWindowFromColumn {} => Self::ExpelWindowFromColumn,
+            osv_ipc::Action::SwapWindowRight {} => Self::SwapWindowRight,
+            osv_ipc::Action::SwapWindowLeft {} => Self::SwapWindowLeft,
+            osv_ipc::Action::ToggleColumnTabbedDisplay {} => Self::ToggleColumnTabbedDisplay,
+            osv_ipc::Action::SetColumnDisplay { display } => Self::SetColumnDisplay(display),
+            osv_ipc::Action::CenterColumn {} => Self::CenterColumn,
+            osv_ipc::Action::CenterWindow { id: None } => Self::CenterWindow,
+            osv_ipc::Action::CenterWindow { id: Some(id) } => Self::CenterWindowById(id),
+            osv_ipc::Action::CenterVisibleColumns {} => Self::CenterVisibleColumns,
+            osv_ipc::Action::FocusWorkspaceDown {} => Self::FocusWorkspaceDown,
+            osv_ipc::Action::FocusWorkspaceUp {} => Self::FocusWorkspaceUp,
+            osv_ipc::Action::FocusWorkspace { reference } => {
                 Self::FocusWorkspace(WorkspaceReference::from(reference))
             }
-            niri_ipc::Action::FocusWorkspacePrevious {} => Self::FocusWorkspacePrevious,
-            niri_ipc::Action::MoveWindowToWorkspaceDown { focus } => {
+            osv_ipc::Action::FocusWorkspacePrevious {} => Self::FocusWorkspacePrevious,
+            osv_ipc::Action::MoveWindowToWorkspaceDown { focus } => {
                 Self::MoveWindowToWorkspaceDown(focus)
             }
-            niri_ipc::Action::MoveWindowToWorkspaceUp { focus } => {
+            osv_ipc::Action::MoveWindowToWorkspaceUp { focus } => {
                 Self::MoveWindowToWorkspaceUp(focus)
             }
-            niri_ipc::Action::MoveWindowToWorkspace {
+            osv_ipc::Action::MoveWindowToWorkspace {
                 window_id: None,
                 reference,
                 focus,
             } => Self::MoveWindowToWorkspace(WorkspaceReference::from(reference), focus),
-            niri_ipc::Action::MoveWindowToWorkspace {
+            osv_ipc::Action::MoveWindowToWorkspace {
                 window_id: Some(window_id),
                 reference,
                 focus,
@@ -522,176 +522,176 @@ impl From<niri_ipc::Action> for Action {
                 reference: WorkspaceReference::from(reference),
                 focus,
             },
-            niri_ipc::Action::MoveColumnToWorkspaceDown { focus } => {
+            osv_ipc::Action::MoveColumnToWorkspaceDown { focus } => {
                 Self::MoveColumnToWorkspaceDown(focus)
             }
-            niri_ipc::Action::MoveColumnToWorkspaceUp { focus } => {
+            osv_ipc::Action::MoveColumnToWorkspaceUp { focus } => {
                 Self::MoveColumnToWorkspaceUp(focus)
             }
-            niri_ipc::Action::MoveColumnToWorkspace { reference, focus } => {
+            osv_ipc::Action::MoveColumnToWorkspace { reference, focus } => {
                 Self::MoveColumnToWorkspace(WorkspaceReference::from(reference), focus)
             }
-            niri_ipc::Action::MoveWorkspaceDown {} => Self::MoveWorkspaceDown,
-            niri_ipc::Action::MoveWorkspaceUp {} => Self::MoveWorkspaceUp,
-            niri_ipc::Action::SetWorkspaceName {
+            osv_ipc::Action::MoveWorkspaceDown {} => Self::MoveWorkspaceDown,
+            osv_ipc::Action::MoveWorkspaceUp {} => Self::MoveWorkspaceUp,
+            osv_ipc::Action::SetWorkspaceName {
                 name,
                 workspace: None,
             } => Self::SetWorkspaceName(name),
-            niri_ipc::Action::SetWorkspaceName {
+            osv_ipc::Action::SetWorkspaceName {
                 name,
                 workspace: Some(reference),
             } => Self::SetWorkspaceNameByRef {
                 name,
                 reference: WorkspaceReference::from(reference),
             },
-            niri_ipc::Action::UnsetWorkspaceName { reference: None } => Self::UnsetWorkspaceName,
-            niri_ipc::Action::UnsetWorkspaceName {
+            osv_ipc::Action::UnsetWorkspaceName { reference: None } => Self::UnsetWorkspaceName,
+            osv_ipc::Action::UnsetWorkspaceName {
                 reference: Some(reference),
             } => Self::UnsetWorkSpaceNameByRef(WorkspaceReference::from(reference)),
-            niri_ipc::Action::FocusMonitorLeft {} => Self::FocusMonitorLeft,
-            niri_ipc::Action::FocusMonitorRight {} => Self::FocusMonitorRight,
-            niri_ipc::Action::FocusMonitorDown {} => Self::FocusMonitorDown,
-            niri_ipc::Action::FocusMonitorUp {} => Self::FocusMonitorUp,
-            niri_ipc::Action::FocusMonitorPrevious {} => Self::FocusMonitorPrevious,
-            niri_ipc::Action::FocusMonitorNext {} => Self::FocusMonitorNext,
-            niri_ipc::Action::FocusMonitor { output } => Self::FocusMonitor(output),
-            niri_ipc::Action::MoveWindowToMonitorLeft {} => Self::MoveWindowToMonitorLeft,
-            niri_ipc::Action::MoveWindowToMonitorRight {} => Self::MoveWindowToMonitorRight,
-            niri_ipc::Action::MoveWindowToMonitorDown {} => Self::MoveWindowToMonitorDown,
-            niri_ipc::Action::MoveWindowToMonitorUp {} => Self::MoveWindowToMonitorUp,
-            niri_ipc::Action::MoveWindowToMonitorPrevious {} => Self::MoveWindowToMonitorPrevious,
-            niri_ipc::Action::MoveWindowToMonitorNext {} => Self::MoveWindowToMonitorNext,
-            niri_ipc::Action::MoveWindowToMonitor { id: None, output } => {
+            osv_ipc::Action::FocusMonitorLeft {} => Self::FocusMonitorLeft,
+            osv_ipc::Action::FocusMonitorRight {} => Self::FocusMonitorRight,
+            osv_ipc::Action::FocusMonitorDown {} => Self::FocusMonitorDown,
+            osv_ipc::Action::FocusMonitorUp {} => Self::FocusMonitorUp,
+            osv_ipc::Action::FocusMonitorPrevious {} => Self::FocusMonitorPrevious,
+            osv_ipc::Action::FocusMonitorNext {} => Self::FocusMonitorNext,
+            osv_ipc::Action::FocusMonitor { output } => Self::FocusMonitor(output),
+            osv_ipc::Action::MoveWindowToMonitorLeft {} => Self::MoveWindowToMonitorLeft,
+            osv_ipc::Action::MoveWindowToMonitorRight {} => Self::MoveWindowToMonitorRight,
+            osv_ipc::Action::MoveWindowToMonitorDown {} => Self::MoveWindowToMonitorDown,
+            osv_ipc::Action::MoveWindowToMonitorUp {} => Self::MoveWindowToMonitorUp,
+            osv_ipc::Action::MoveWindowToMonitorPrevious {} => Self::MoveWindowToMonitorPrevious,
+            osv_ipc::Action::MoveWindowToMonitorNext {} => Self::MoveWindowToMonitorNext,
+            osv_ipc::Action::MoveWindowToMonitor { id: None, output } => {
                 Self::MoveWindowToMonitor(output)
             }
-            niri_ipc::Action::MoveWindowToMonitor {
+            osv_ipc::Action::MoveWindowToMonitor {
                 id: Some(id),
                 output,
             } => Self::MoveWindowToMonitorById { id, output },
-            niri_ipc::Action::MoveColumnToMonitorLeft {} => Self::MoveColumnToMonitorLeft,
-            niri_ipc::Action::MoveColumnToMonitorRight {} => Self::MoveColumnToMonitorRight,
-            niri_ipc::Action::MoveColumnToMonitorDown {} => Self::MoveColumnToMonitorDown,
-            niri_ipc::Action::MoveColumnToMonitorUp {} => Self::MoveColumnToMonitorUp,
-            niri_ipc::Action::MoveColumnToMonitorPrevious {} => Self::MoveColumnToMonitorPrevious,
-            niri_ipc::Action::MoveColumnToMonitorNext {} => Self::MoveColumnToMonitorNext,
-            niri_ipc::Action::MoveColumnToMonitor { output } => Self::MoveColumnToMonitor(output),
-            niri_ipc::Action::SetWindowWidth { id: None, change } => Self::SetWindowWidth(change),
-            niri_ipc::Action::SetWindowWidth {
+            osv_ipc::Action::MoveColumnToMonitorLeft {} => Self::MoveColumnToMonitorLeft,
+            osv_ipc::Action::MoveColumnToMonitorRight {} => Self::MoveColumnToMonitorRight,
+            osv_ipc::Action::MoveColumnToMonitorDown {} => Self::MoveColumnToMonitorDown,
+            osv_ipc::Action::MoveColumnToMonitorUp {} => Self::MoveColumnToMonitorUp,
+            osv_ipc::Action::MoveColumnToMonitorPrevious {} => Self::MoveColumnToMonitorPrevious,
+            osv_ipc::Action::MoveColumnToMonitorNext {} => Self::MoveColumnToMonitorNext,
+            osv_ipc::Action::MoveColumnToMonitor { output } => Self::MoveColumnToMonitor(output),
+            osv_ipc::Action::SetWindowWidth { id: None, change } => Self::SetWindowWidth(change),
+            osv_ipc::Action::SetWindowWidth {
                 id: Some(id),
                 change,
             } => Self::SetWindowWidthById { id, change },
-            niri_ipc::Action::SetWindowHeight { id: None, change } => Self::SetWindowHeight(change),
-            niri_ipc::Action::SetWindowHeight {
+            osv_ipc::Action::SetWindowHeight { id: None, change } => Self::SetWindowHeight(change),
+            osv_ipc::Action::SetWindowHeight {
                 id: Some(id),
                 change,
             } => Self::SetWindowHeightById { id, change },
-            niri_ipc::Action::ResetWindowHeight { id: None } => Self::ResetWindowHeight,
-            niri_ipc::Action::ResetWindowHeight { id: Some(id) } => Self::ResetWindowHeightById(id),
-            niri_ipc::Action::SwitchPresetColumnWidth {} => Self::SwitchPresetColumnWidth,
-            niri_ipc::Action::SwitchPresetColumnWidthBack {} => Self::SwitchPresetColumnWidthBack,
-            niri_ipc::Action::SwitchPresetWindowWidth { id: None } => Self::SwitchPresetWindowWidth,
-            niri_ipc::Action::SwitchPresetWindowWidthBack { id: None } => {
+            osv_ipc::Action::ResetWindowHeight { id: None } => Self::ResetWindowHeight,
+            osv_ipc::Action::ResetWindowHeight { id: Some(id) } => Self::ResetWindowHeightById(id),
+            osv_ipc::Action::SwitchPresetColumnWidth {} => Self::SwitchPresetColumnWidth,
+            osv_ipc::Action::SwitchPresetColumnWidthBack {} => Self::SwitchPresetColumnWidthBack,
+            osv_ipc::Action::SwitchPresetWindowWidth { id: None } => Self::SwitchPresetWindowWidth,
+            osv_ipc::Action::SwitchPresetWindowWidthBack { id: None } => {
                 Self::SwitchPresetWindowWidthBack
             }
-            niri_ipc::Action::SwitchPresetWindowWidth { id: Some(id) } => {
+            osv_ipc::Action::SwitchPresetWindowWidth { id: Some(id) } => {
                 Self::SwitchPresetWindowWidthById(id)
             }
-            niri_ipc::Action::SwitchPresetWindowWidthBack { id: Some(id) } => {
+            osv_ipc::Action::SwitchPresetWindowWidthBack { id: Some(id) } => {
                 Self::SwitchPresetWindowWidthBackById(id)
             }
-            niri_ipc::Action::SwitchPresetWindowHeight { id: None } => {
+            osv_ipc::Action::SwitchPresetWindowHeight { id: None } => {
                 Self::SwitchPresetWindowHeight
             }
-            niri_ipc::Action::SwitchPresetWindowHeightBack { id: None } => {
+            osv_ipc::Action::SwitchPresetWindowHeightBack { id: None } => {
                 Self::SwitchPresetWindowHeightBack
             }
-            niri_ipc::Action::SwitchPresetWindowHeight { id: Some(id) } => {
+            osv_ipc::Action::SwitchPresetWindowHeight { id: Some(id) } => {
                 Self::SwitchPresetWindowHeightById(id)
             }
-            niri_ipc::Action::SwitchPresetWindowHeightBack { id: Some(id) } => {
+            osv_ipc::Action::SwitchPresetWindowHeightBack { id: Some(id) } => {
                 Self::SwitchPresetWindowHeightBackById(id)
             }
-            niri_ipc::Action::MaximizeColumn {} => Self::MaximizeColumn,
-            niri_ipc::Action::MaximizeWindowToEdges { id: None } => Self::MaximizeWindowToEdges,
-            niri_ipc::Action::MaximizeWindowToEdges { id: Some(id) } => {
+            osv_ipc::Action::MaximizeColumn {} => Self::MaximizeColumn,
+            osv_ipc::Action::MaximizeWindowToEdges { id: None } => Self::MaximizeWindowToEdges,
+            osv_ipc::Action::MaximizeWindowToEdges { id: Some(id) } => {
                 Self::MaximizeWindowToEdgesById(id)
             }
-            niri_ipc::Action::SetColumnWidth { change } => Self::SetColumnWidth(change),
-            niri_ipc::Action::ExpandColumnToAvailableWidth {} => Self::ExpandColumnToAvailableWidth,
-            niri_ipc::Action::SwitchLayout { layout } => Self::SwitchLayout(layout),
-            niri_ipc::Action::ShowHotkeyOverlay {} => Self::ShowHotkeyOverlay,
-            niri_ipc::Action::MoveWorkspaceToMonitorLeft {} => Self::MoveWorkspaceToMonitorLeft,
-            niri_ipc::Action::MoveWorkspaceToMonitorRight {} => Self::MoveWorkspaceToMonitorRight,
-            niri_ipc::Action::MoveWorkspaceToMonitorDown {} => Self::MoveWorkspaceToMonitorDown,
-            niri_ipc::Action::MoveWorkspaceToMonitorUp {} => Self::MoveWorkspaceToMonitorUp,
-            niri_ipc::Action::MoveWorkspaceToMonitorPrevious {} => {
+            osv_ipc::Action::SetColumnWidth { change } => Self::SetColumnWidth(change),
+            osv_ipc::Action::ExpandColumnToAvailableWidth {} => Self::ExpandColumnToAvailableWidth,
+            osv_ipc::Action::SwitchLayout { layout } => Self::SwitchLayout(layout),
+            osv_ipc::Action::ShowHotkeyOverlay {} => Self::ShowHotkeyOverlay,
+            osv_ipc::Action::MoveWorkspaceToMonitorLeft {} => Self::MoveWorkspaceToMonitorLeft,
+            osv_ipc::Action::MoveWorkspaceToMonitorRight {} => Self::MoveWorkspaceToMonitorRight,
+            osv_ipc::Action::MoveWorkspaceToMonitorDown {} => Self::MoveWorkspaceToMonitorDown,
+            osv_ipc::Action::MoveWorkspaceToMonitorUp {} => Self::MoveWorkspaceToMonitorUp,
+            osv_ipc::Action::MoveWorkspaceToMonitorPrevious {} => {
                 Self::MoveWorkspaceToMonitorPrevious
             }
-            niri_ipc::Action::MoveWorkspaceToIndex {
+            osv_ipc::Action::MoveWorkspaceToIndex {
                 index,
                 reference: Some(reference),
             } => Self::MoveWorkspaceToIndexByRef {
                 new_idx: index,
                 reference: WorkspaceReference::from(reference),
             },
-            niri_ipc::Action::MoveWorkspaceToIndex {
+            osv_ipc::Action::MoveWorkspaceToIndex {
                 index,
                 reference: None,
             } => Self::MoveWorkspaceToIndex(index),
-            niri_ipc::Action::MoveWorkspaceToMonitor {
+            osv_ipc::Action::MoveWorkspaceToMonitor {
                 output,
                 reference: Some(reference),
             } => Self::MoveWorkspaceToMonitorByRef {
                 output_name: output,
                 reference: WorkspaceReference::from(reference),
             },
-            niri_ipc::Action::MoveWorkspaceToMonitor {
+            osv_ipc::Action::MoveWorkspaceToMonitor {
                 output,
                 reference: None,
             } => Self::MoveWorkspaceToMonitor(output),
-            niri_ipc::Action::MoveWorkspaceToMonitorNext {} => Self::MoveWorkspaceToMonitorNext,
-            niri_ipc::Action::ToggleDebugTint {} => Self::ToggleDebugTint,
-            niri_ipc::Action::DebugToggleOpaqueRegions {} => Self::DebugToggleOpaqueRegions,
-            niri_ipc::Action::DebugToggleDamage {} => Self::DebugToggleDamage,
-            niri_ipc::Action::ToggleWindowFloating { id: None } => Self::ToggleWindowFloating,
-            niri_ipc::Action::ToggleWindowFloating { id: Some(id) } => {
+            osv_ipc::Action::MoveWorkspaceToMonitorNext {} => Self::MoveWorkspaceToMonitorNext,
+            osv_ipc::Action::ToggleDebugTint {} => Self::ToggleDebugTint,
+            osv_ipc::Action::DebugToggleOpaqueRegions {} => Self::DebugToggleOpaqueRegions,
+            osv_ipc::Action::DebugToggleDamage {} => Self::DebugToggleDamage,
+            osv_ipc::Action::ToggleWindowFloating { id: None } => Self::ToggleWindowFloating,
+            osv_ipc::Action::ToggleWindowFloating { id: Some(id) } => {
                 Self::ToggleWindowFloatingById(id)
             }
-            niri_ipc::Action::MoveWindowToFloating { id: None } => Self::MoveWindowToFloating,
-            niri_ipc::Action::MoveWindowToFloating { id: Some(id) } => {
+            osv_ipc::Action::MoveWindowToFloating { id: None } => Self::MoveWindowToFloating,
+            osv_ipc::Action::MoveWindowToFloating { id: Some(id) } => {
                 Self::MoveWindowToFloatingById(id)
             }
-            niri_ipc::Action::MoveWindowToTiling { id: None } => Self::MoveWindowToTiling,
-            niri_ipc::Action::MoveWindowToTiling { id: Some(id) } => {
+            osv_ipc::Action::MoveWindowToTiling { id: None } => Self::MoveWindowToTiling,
+            osv_ipc::Action::MoveWindowToTiling { id: Some(id) } => {
                 Self::MoveWindowToTilingById(id)
             }
-            niri_ipc::Action::FocusFloating {} => Self::FocusFloating,
-            niri_ipc::Action::FocusTiling {} => Self::FocusTiling,
-            niri_ipc::Action::SwitchFocusBetweenFloatingAndTiling {} => {
+            osv_ipc::Action::FocusFloating {} => Self::FocusFloating,
+            osv_ipc::Action::FocusTiling {} => Self::FocusTiling,
+            osv_ipc::Action::SwitchFocusBetweenFloatingAndTiling {} => {
                 Self::SwitchFocusBetweenFloatingAndTiling
             }
-            niri_ipc::Action::MoveFloatingWindow { id, x, y } => {
+            osv_ipc::Action::MoveFloatingWindow { id, x, y } => {
                 Self::MoveFloatingWindowById { id, x, y }
             }
-            niri_ipc::Action::ToggleWindowRuleOpacity { id: None } => Self::ToggleWindowRuleOpacity,
-            niri_ipc::Action::ToggleWindowRuleOpacity { id: Some(id) } => {
+            osv_ipc::Action::ToggleWindowRuleOpacity { id: None } => Self::ToggleWindowRuleOpacity,
+            osv_ipc::Action::ToggleWindowRuleOpacity { id: Some(id) } => {
                 Self::ToggleWindowRuleOpacityById(id)
             }
-            niri_ipc::Action::SetDynamicCastWindow { id: None } => Self::SetDynamicCastWindow,
-            niri_ipc::Action::SetDynamicCastWindow { id: Some(id) } => {
+            osv_ipc::Action::SetDynamicCastWindow { id: None } => Self::SetDynamicCastWindow,
+            osv_ipc::Action::SetDynamicCastWindow { id: Some(id) } => {
                 Self::SetDynamicCastWindowById(id)
             }
-            niri_ipc::Action::SetDynamicCastMonitor { output } => {
+            osv_ipc::Action::SetDynamicCastMonitor { output } => {
                 Self::SetDynamicCastMonitor(output)
             }
-            niri_ipc::Action::ClearDynamicCastTarget {} => Self::ClearDynamicCastTarget,
-            niri_ipc::Action::ToggleOverview {} => Self::ToggleOverview,
-            niri_ipc::Action::OpenOverview {} => Self::OpenOverview,
-            niri_ipc::Action::CloseOverview {} => Self::CloseOverview,
-            niri_ipc::Action::ToggleWindowUrgent { id } => Self::ToggleWindowUrgent(id),
-            niri_ipc::Action::SetWindowUrgent { id } => Self::SetWindowUrgent(id),
-            niri_ipc::Action::UnsetWindowUrgent { id } => Self::UnsetWindowUrgent(id),
-            niri_ipc::Action::LoadConfigFile {} => Self::LoadConfigFile,
+            osv_ipc::Action::ClearDynamicCastTarget {} => Self::ClearDynamicCastTarget,
+            osv_ipc::Action::ToggleOverview {} => Self::ToggleOverview,
+            osv_ipc::Action::OpenOverview {} => Self::OpenOverview,
+            osv_ipc::Action::CloseOverview {} => Self::CloseOverview,
+            osv_ipc::Action::ToggleWindowUrgent { id } => Self::ToggleWindowUrgent(id),
+            osv_ipc::Action::SetWindowUrgent { id } => Self::SetWindowUrgent(id),
+            osv_ipc::Action::UnsetWindowUrgent { id } => Self::UnsetWindowUrgent(id),
+            osv_ipc::Action::LoadConfigFile {} => Self::LoadConfigFile,
         }
     }
 }

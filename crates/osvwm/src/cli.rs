@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use clap_complete::Shell;
-use niri_ipc::{Action, OutputAction};
+use osv_ipc::{Action, OutputAction};
 
 use crate::utils::version;
 

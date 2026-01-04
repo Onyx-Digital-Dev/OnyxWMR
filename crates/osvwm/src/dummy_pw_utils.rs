@@ -1,7 +1,7 @@
 use anyhow::bail;
 use smithay::reexports::calloop::LoopHandle;
 
-use crate::niri::State;
+use crate::osvwm::State;
 
 pub struct PipeWire;
 pub struct Cast;

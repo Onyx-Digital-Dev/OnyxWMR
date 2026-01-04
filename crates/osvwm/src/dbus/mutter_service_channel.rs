@@ -3,7 +3,7 @@ use std::os::unix::net::UnixStream;
 use zbus::{fdo, interface, zvariant};
 
 use super::Start;
-use crate::niri::NewClient;
+use crate::osvwm::NewClient;
 
 pub struct ServiceChannel {
     to_niri: calloop::channel::Sender<NewClient>,

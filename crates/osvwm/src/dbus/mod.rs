@@ -1,7 +1,7 @@
 use zbus::blocking::Connection;
 use zbus::object_server::Interface;
 
-use crate::niri::State;
+use crate::osvwm::State;
 
 pub mod freedesktop_a11y;
 pub mod freedesktop_locale1;
@@ -46,7 +46,7 @@ impl DBusServers {
         let _span = tracy_client::span!("DBusServers::start");
 
         let backend = &state.backend;
-        let niri = &mut state.niri;
+        let niri = &mut state.osvwm;
         let config = niri.config.borrow();
 
         let mut dbus = Self::default();
@@ -57,7 +57,7 @@ impl DBusServers {
             niri.event_loop
                 .insert_source(from_service_channel, move |event, _, state| match event {
                     calloop::channel::Event::Msg(new_client) => {
-                        state.niri.insert_client(new_client);
+                        state.osvwm.insert_client(new_client);
                     }
                     calloop::channel::Event::Closed => (),
                 })

@@ -125,7 +125,7 @@ impl Shaders {
             .expect("shaders::init() must be called when creating the renderer")
     }
 
-    pub fn get(renderer: &mut impl NiriRenderer) -> &Self {
+    pub fn get(renderer: &mut impl OsvwmRenderer) -> &Self {
         let renderer = renderer.as_gles_renderer();
         let data = renderer.egl_context().user_data();
         data.get()

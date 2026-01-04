@@ -11,12 +11,12 @@ use smithay::wayland::shell::wlr_layer::{
 use smithay::wayland::shell::xdg::PopupSurface;
 
 use crate::layer::{MappedLayer, ResolvedLayerRules};
-use crate::niri::State;
+use crate::osvwm::State;
 use crate::utils::{is_mapped, output_size, send_scale_transform};
 
 impl WlrLayerShellHandler for State {
     fn shell_state(&mut self) -> &mut WlrLayerShellState {
-        &mut self.niri.layer_shell_state
+        &mut self.osvwm.layer_shell_state
     }
 
     fn new_layer_surface(
@@ -29,7 +29,7 @@ impl WlrLayerShellHandler for State {
         let output = if let Some(wl_output) = &wl_output {
             Output::from_resource(wl_output)
         } else {
-            self.niri.layout.active_output().cloned()
+            self.osvwm.layout.active_output().cloned()
         };
         let Some(output) = output else {
             warn!("no output for new layer surface, closing");
@@ -38,7 +38,7 @@ impl WlrLayerShellHandler for State {
         };
 
         let wl_surface = surface.wl_surface().clone();
-        let is_new = self.niri.unmapped_layer_surfaces.insert(wl_surface);
+        let is_new = self.osvwm.unmapped_layer_surfaces.insert(wl_surface);
         assert!(is_new);
 
         let mut map = layer_map_for_output(&output);
@@ -48,10 +48,10 @@ impl WlrLayerShellHandler for State {
 
     fn layer_destroyed(&mut self, surface: WlrLayerSurface) {
         let wl_surface = surface.wl_surface();
-        self.niri.unmapped_layer_surfaces.remove(wl_surface);
+        self.osvwm.unmapped_layer_surfaces.remove(wl_surface);
 
         let output = if let Some((output, mut map, layer)) =
-            self.niri.layout.outputs().find_map(|o| {
+            self.osvwm.layout.outputs().find_map(|o| {
                 let map = layer_map_for_output(o);
                 let layer = map
                     .layers()
@@ -60,13 +60,13 @@ impl WlrLayerShellHandler for State {
                 layer.map(|layer| (o.clone(), map, layer))
             }) {
             map.unmap_layer(&layer);
-            self.niri.mapped_layer_surfaces.remove(&layer);
+            self.osvwm.mapped_layer_surfaces.remove(&layer);
             Some(output)
         } else {
             None
         };
         if let Some(output) = output {
-            self.niri.output_resized(&output);
+            self.osvwm.output_resized(&output);
         }
     }
 
@@ -99,7 +99,7 @@ impl State {
 
         if surface != &root_surface {
             // This is an unsync layer-shell subsurface.
-            self.niri.queue_redraw(&output);
+            self.osvwm.queue_redraw(&output);
             return true;
         }
 
@@ -114,14 +114,14 @@ impl State {
             .unwrap();
 
         if is_mapped(surface) {
-            let was_unmapped = self.niri.unmapped_layer_surfaces.remove(surface);
+            let was_unmapped = self.osvwm.unmapped_layer_surfaces.remove(surface);
 
             // Resolve rules for newly mapped layer surfaces.
             if was_unmapped {
-                let config = self.niri.config.borrow();
+                let config = self.osvwm.config.borrow();
 
                 let rules = &config.layer_rules;
-                let rules = ResolvedLayerRules::compute(rules, layer, self.niri.is_at_startup);
+                let rules = ResolvedLayerRules::compute(rules, layer, self.osvwm.is_at_startup);
 
                 let output_size = output_size(&output);
                 let scale = output.current_scale().fractional_scale();
@@ -131,7 +131,7 @@ impl State {
                     rules,
                     output_size,
                     scale,
-                    self.niri.clock.clone(),
+                    self.osvwm.clock.clone(),
                     &config,
                 );
 
@@ -162,14 +162,14 @@ impl State {
                 // I guess it'd make sense to check that no higher-layer on-demand surface
                 // has focus, but Smithay's Layer doesn't implement Ord so this would be a
                 // little annoying.
-                self.niri.layer_shell_on_demand_focus = Some(layer.clone());
+                self.osvwm.layer_shell_on_demand_focus = Some(layer.clone());
             }
         } else {
             // The surface is unmapped.
-            if self.niri.mapped_layer_surfaces.remove(layer).is_some() {
+            if self.osvwm.mapped_layer_surfaces.remove(layer).is_some() {
                 // A mapped surface got unmapped via a null commit. Now it needs to do a new
                 // initial commit again.
-                self.niri.unmapped_layer_surfaces.insert(surface.clone());
+                self.osvwm.unmapped_layer_surfaces.insert(surface.clone());
             } else {
                 // An unmapped surface remains unmapped. If we haven't sent an initial configure
                 // yet, we should do so.
@@ -199,7 +199,7 @@ impl State {
         drop(map);
 
         // This will call queue_redraw() inside.
-        self.niri.output_resized(&output);
+        self.osvwm.output_resized(&output);
 
         true
     }

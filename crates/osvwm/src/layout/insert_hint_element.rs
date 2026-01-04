@@ -1,4 +1,4 @@
-use niri_config::CornerRadius;
+use osvwm_config::CornerRadius;
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
 use super::focus_ring::{FocusRing, FocusRingRenderElement};
@@ -12,9 +12,9 @@ pub struct InsertHintElement {
 pub type InsertHintRenderElement = FocusRingRenderElement;
 
 impl InsertHintElement {
-    pub fn new(config: niri_config::InsertHint) -> Self {
+    pub fn new(config: osvwm_config::InsertHint) -> Self {
         Self {
-            inner: FocusRing::new(niri_config::FocusRing {
+            inner: FocusRing::new(osvwm_config::FocusRing {
                 off: config.off,
                 width: 0.,
                 active_color: config.color,
@@ -27,8 +27,8 @@ impl InsertHintElement {
         }
     }
 
-    pub fn update_config(&mut self, config: niri_config::InsertHint) {
-        self.inner.update_config(niri_config::FocusRing {
+    pub fn update_config(&mut self, config: osvwm_config::InsertHint) {
+        self.inner.update_config(osvwm_config::FocusRing {
             off: config.off,
             width: 0.,
             active_color: config.color,
@@ -57,7 +57,7 @@ impl InsertHintElement {
 
     pub fn render(
         &self,
-        renderer: &mut impl NiriRenderer,
+        renderer: &mut impl OsvwmRenderer,
         location: Point<f64, Logical>,
         push: &mut dyn FnMut(FocusRingRenderElement),
     ) {

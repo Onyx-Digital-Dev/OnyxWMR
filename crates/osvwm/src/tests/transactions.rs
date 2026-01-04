@@ -1,15 +1,15 @@
 use std::fmt::Write as _;
 
 use insta::assert_snapshot;
-use niri_ipc::SizeChange;
+use osv_ipc::SizeChange;
 use wayland_client::protocol::wl_surface::WlSurface;
 
 use super::client::ClientId;
 use super::*;
 use crate::layout::LayoutElement;
-use crate::niri::Niri;
+use crate::osvwm::Niri;
 
-fn format_window_sizes(niri: &Niri) -> String {
+fn format_window_sizes(osvwm: &Osvwm) -> String {
     let mut buf = String::new();
     for (_out, mapped) in niri.layout.windows() {
         let size = mapped.size();

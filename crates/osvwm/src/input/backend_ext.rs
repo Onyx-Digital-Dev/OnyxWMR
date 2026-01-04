@@ -3,7 +3,7 @@ use smithay::backend::input;
 use smithay::backend::winit::WinitVirtualDevice;
 use smithay::output::Output;
 
-use crate::niri::State;
+use crate::osvwm::State;
 use crate::protocols::virtual_pointer::VirtualPointer;
 
 pub trait NiriInputBackend: input::InputBackend<Device = Self::NiriDevice> {
@@ -23,14 +23,14 @@ pub trait NiriInputDevice: input::Device {
     fn output(&self, state: &State) -> Option<Output>;
 }
 
-impl NiriInputDevice for libinput::Device {
+impl OsvwmInputDevice for libinput::Device {
     fn output(&self, _state: &State) -> Option<Output> {
         // FIXME: Allow specifying the output per-device?
         None
     }
 }
 
-impl NiriInputDevice for WinitVirtualDevice {
+impl OsvwmInputDevice for WinitVirtualDevice {
     fn output(&self, _state: &State) -> Option<Output> {
         // FIXME: we should be returning the single output that the winit backend creates,
         // but for now, that will cause issues because the output is normally upside down,
@@ -44,7 +44,7 @@ impl NiriInputDevice for WinitVirtualDevice {
     }
 }
 
-impl NiriInputDevice for VirtualPointer {
+impl OsvwmInputDevice for VirtualPointer {
     fn output(&self, _: &State) -> Option<Output> {
         self.output().cloned()
     }

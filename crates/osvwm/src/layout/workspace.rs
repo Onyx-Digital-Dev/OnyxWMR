@@ -2,11 +2,11 @@ use std::cmp::max;
 use std::rc::Rc;
 use std::time::Duration;
 
-use niri_config::utils::MergeWith as _;
-use niri_config::{
+use osvwm_config::utils::MergeWith as _;
+use osvwm_config::{
     CenterFocusedColumn, CornerRadius, OutputName, PresetSize, Workspace as WorkspaceConfig,
 };
-use niri_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
+use osv_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
 use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::desktop::{layer_map_for_output, Window};
@@ -28,7 +28,7 @@ use super::{
     RemovedTile, SizeFrac,
 };
 use crate::animation::Clock;
-use crate::niri_render_elements;
+use crate::osvwm_render_elements;
 use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::shadow::ShadowRenderElement;
 use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
@@ -106,7 +106,7 @@ pub struct Workspace<W: LayoutElement> {
     pub(super) name: Option<String>,
 
     /// Layout config overrides for this workspace.
-    layout_config: Option<niri_config::LayoutPart>,
+    layout_config: Option<osvwm_config::LayoutPart>,
 
     /// Unique ID of this workspace.
     id: WorkspaceId,
@@ -141,7 +141,7 @@ impl WorkspaceId {
     }
 }
 
-niri_render_elements! {
+osvwm_render_elements! {
     WorkspaceRenderElement<R> => {
         Scrolling = ScrollingSpaceRenderElement<R>,
         Floating = FloatingSpaceRenderElement<R>,
@@ -424,7 +424,7 @@ impl<W: LayoutElement> Workspace<W> {
         self.options = options;
     }
 
-    pub fn update_layout_config(&mut self, layout_config: Option<niri_config::LayoutPart>) {
+    pub fn update_layout_config(&mut self, layout_config: Option<osvwm_config::LayoutPart>) {
         if self.layout_config == layout_config {
             return;
         }
@@ -1962,7 +1962,7 @@ impl<W: LayoutElement> Workspace<W> {
         self.working_area
     }
 
-    pub fn layout_config(&self) -> Option<&niri_config::LayoutPart> {
+    pub fn layout_config(&self) -> Option<&osvwm_config::LayoutPart> {
         self.layout_config.as_ref()
     }
 
@@ -2056,14 +2056,14 @@ pub(super) fn compute_working_area(output: &Output) -> Rectangle<f64, Logical> {
 }
 
 fn compute_workspace_shadow_config(
-    config: niri_config::WorkspaceShadow,
+    config: osvwm_config::WorkspaceShadow,
     view_size: Size<f64, Logical>,
-) -> niri_config::Shadow {
+) -> osvwm_config::Shadow {
     // Gaps between workspaces are a multiple of the view height, so shadow settings should also be
     // normalized to the view height to prevent them from overlapping on lower resolutions.
     let norm = view_size.h / 1080.;
 
-    let mut config = niri_config::Shadow::from(config);
+    let mut config = osvwm_config::Shadow::from(config);
     config.softness *= norm;
     config.spread *= norm;
     config.offset.x.0 *= norm;

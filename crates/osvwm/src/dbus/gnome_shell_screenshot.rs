@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use niri_ipc::PickedColor;
+use osv_ipc::PickedColor;
 use zbus::fdo::{self, RequestNameFlags};
 use zbus::zvariant::OwnedValue;
 use zbus::{interface, zvariant};
@@ -32,7 +32,7 @@ impl Screenshot {
     ) -> fdo::Result<(bool, PathBuf)> {
         if let Err(err) = self
             .to_niri
-            .send(ScreenshotToNiri::TakeScreenshot { include_cursor })
+            .send(ScreenshotToOsvwm::TakeScreenshot { include_cursor })
         {
             warn!("error sending message to niri: {err:?}");
             return Err(fdo::Error::Failed("internal error".to_owned()));
@@ -54,7 +54,7 @@ impl Screenshot {
 
     async fn pick_color(&self) -> fdo::Result<HashMap<String, OwnedValue>> {
         let (tx, rx) = async_channel::bounded(1);
-        if let Err(err) = self.to_niri.send(ScreenshotToNiri::PickColor(tx)) {
+        if let Err(err) = self.to_niri.send(ScreenshotToOsvwm::PickColor(tx)) {
             warn!("error sending pick color message to niri: {err:?}");
             return Err(fdo::Error::Failed("internal error".to_owned()));
         }

@@ -2,17 +2,17 @@ use std::fmt::Write as _;
 use std::time::Duration;
 
 use insta::assert_snapshot;
-use niri_config::animations::{Curve, EasingParams, Kind};
-use niri_config::Config;
-use niri_ipc::SizeChange;
+use osvwm_config::animations::{Curve, EasingParams, Kind};
+use osvwm_config::Config;
+use osv_ipc::SizeChange;
 use smithay::utils::{Point, Size};
 use wayland_client::protocol::wl_surface::WlSurface;
 
 use super::client::ClientId;
 use super::*;
-use crate::niri::Niri;
+use crate::osvwm::Niri;
 
-fn format_tiles(niri: &Niri) -> String {
+fn format_tiles(osvwm: &Osvwm) -> String {
     let mut buf = String::new();
     let ws = niri.layout.active_workspace().unwrap();
     let mut tiles: Vec<_> = ws.tiles_with_render_positions().collect();
@@ -44,7 +44,7 @@ fn create_window(f: &mut Fixture, id: ClientId, w: u16, h: u16) -> WlSurface {
     surface
 }
 
-fn set_time(niri: &mut Niri, time: Duration) {
+fn set_time(osvwm: &mut Osvwm, time: Duration) {
     // This is a bit involved because we're dealing with an AdjustableClock that maintains its own
     // internal current_time.
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Mutex;
 
-use niri_config::Config;
+use osvwm_config::Config;
 use ordered_float::NotNan;
 use pangocairo::cairo::{self, ImageSurface};
 use pangocairo::pango::{Alignment, FontDescription};
@@ -14,7 +14,7 @@ use smithay::reexports::gbm::Format as Fourcc;
 use smithay::utils::{Point, Transform};
 
 use crate::animation::{Animation, Clock};
-use crate::niri_render_elements;
+use crate::osvwm_render_elements;
 use crate::render_helpers::memory::MemoryBuffer;
 use crate::render_helpers::primary_gpu_texture::PrimaryGpuTextureRenderElement;
 use crate::render_helpers::renderer::NiriRenderer;
@@ -36,7 +36,7 @@ pub struct ExitConfirmDialog {
     config: Rc<RefCell<Config>>,
 }
 
-niri_render_elements! {
+osvwm_render_elements! {
     ExitConfirmDialogRenderElement => {
         Texture = RescaleRenderElement<PrimaryGpuTextureRenderElement>,
         SolidColor = SolidColorRenderElement,

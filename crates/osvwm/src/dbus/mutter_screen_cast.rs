@@ -73,7 +73,7 @@ pub struct Stream {
 #[derive(Clone)]
 enum StreamTarget {
     // FIXME: update on scale changes and whatnot.
-    Output(niri_ipc::Output),
+    Output(osv_ipc::Output),
     Window { id: u64 },
 }
 
@@ -170,7 +170,7 @@ impl Session {
 
         Session::closed(&ctxt).await.unwrap();
 
-        if let Err(err) = self.to_niri.send(ScreenCastToNiri::StopCast {
+        if let Err(err) = self.to_niri.send(ScreenCastToOsvwm::StopCast {
             session_id: self.id,
         }) {
             warn!("error sending StopCast to niri: {err:?}");
@@ -353,7 +353,7 @@ impl Session {
 
 impl Drop for Session {
     fn drop(&mut self) {
-        let _ = self.to_niri.send(ScreenCastToNiri::StopCast {
+        let _ = self.to_niri.send(ScreenCastToOsvwm::StopCast {
             session_id: self.id,
         });
     }
@@ -382,7 +382,7 @@ impl Stream {
             return;
         }
 
-        let msg = ScreenCastToNiri::StartCast {
+        let msg = ScreenCastToOsvwm::StartCast {
             session_id: self.session_id,
             stream_id: self.id,
             target: self.target.make_id(),

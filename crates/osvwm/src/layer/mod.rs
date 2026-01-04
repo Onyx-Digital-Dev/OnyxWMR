@@ -1,6 +1,6 @@
-use niri_config::layer_rule::{LayerRule, Match};
-use niri_config::utils::MergeWith as _;
-use niri_config::{BlockOutFrom, CornerRadius, ShadowRule};
+use osvwm_config::layer_rule::{LayerRule, Match};
+use osvwm_config::utils::MergeWith as _;
+use osvwm_config::{BlockOutFrom, CornerRadius, ShadowRule};
 use smithay::desktop::LayerSurface;
 
 pub mod mapped;

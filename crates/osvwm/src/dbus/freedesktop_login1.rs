@@ -53,7 +53,7 @@ pub fn start(
             .and_then(|value| bool::try_from(value).ok())
             .unwrap_or_default();
 
-        if let Err(err) = to_niri.send(Login1ToNiri::LidClosedChanged(lid_closed)) {
+        if let Err(err) = to_niri.send(Login1ToOsvwm::LidClosedChanged(lid_closed)) {
             warn!("error sending initial lid state to niri: {err:?}");
             return;
         };
@@ -88,7 +88,7 @@ pub fn start(
             }
 
             lid_closed = new_lid_closed;
-            if let Err(err) = to_niri.send(Login1ToNiri::LidClosedChanged(lid_closed)) {
+            if let Err(err) = to_niri.send(Login1ToOsvwm::LidClosedChanged(lid_closed)) {
                 warn!("error sending message to niri: {err:?}");
                 return;
             };

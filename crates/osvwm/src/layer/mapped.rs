@@ -1,5 +1,5 @@
-use niri_config::utils::MergeWith as _;
-use niri_config::{Config, LayerRule};
+use osvwm_config::utils::MergeWith as _;
+use osvwm_config::{Config, LayerRule};
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::Kind;
 use smithay::desktop::{LayerSurface, PopupManager};
@@ -9,7 +9,7 @@ use smithay::wayland::shell::wlr_layer::{ExclusiveZone, Layer};
 use super::ResolvedLayerRules;
 use crate::animation::Clock;
 use crate::layout::shadow::Shadow;
-use crate::niri_render_elements;
+use crate::osvwm_render_elements;
 use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::shadow::ShadowRenderElement;
 use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
@@ -41,7 +41,7 @@ pub struct MappedLayer {
     clock: Clock,
 }
 
-niri_render_elements! {
+osvwm_render_elements! {
     LayerSurfaceRenderElement<R> => {
         Wayland = WaylandSurfaceRenderElement<R>,
         SolidColor = SolidColorRenderElement,

@@ -17,7 +17,7 @@ use smithay::output::Output;
 use smithay::utils::{IsAlive, Logical, Point, Serial, SERIAL_COUNTER};
 
 use crate::input::PointerOrTouchStartData;
-use crate::niri::State;
+use crate::osvwm::State;
 use crate::utils::get_monotonic_time;
 
 pub struct MoveGrab {
@@ -52,7 +52,7 @@ impl MoveGrab {
         move_icon: Option<CursorIcon>,
     ) -> Option<Self> {
         let location = start_data.location();
-        let (output, pos_within_output) = state.niri.output_under(location)?;
+        let (output, pos_within_output) = state.osvwm.output_under(location)?;
 
         Some(Self {
             last_location: location,

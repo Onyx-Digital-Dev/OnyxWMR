@@ -14,9 +14,9 @@ use anyhow::{anyhow, bail, ensure, Context};
 use bytemuck::cast_slice_mut;
 use drm_ffi::drm_mode_modeinfo;
 use libc::dev_t;
-use niri_config::output::Modeline;
-use niri_config::{Config, OutputName};
-use niri_ipc::{HSyncPolarity, VSyncPolarity};
+use osvwm_config::output::Modeline;
+use osvwm_config::{Config, OutputName};
+use osv_ipc::{HSyncPolarity, VSyncPolarity};
 use smithay::backend::allocator::dmabuf::Dmabuf;
 use smithay::backend::allocator::format::FormatSet;
 use smithay::backend::allocator::gbm::{GbmAllocator, GbmBufferFlags, GbmDevice};
@@ -64,7 +64,7 @@ use wayland_protocols::wp::presentation_time::server::wp_presentation_feedback;
 use super::{IpcOutputMap, RenderResult};
 use crate::backend::OutputId;
 use crate::frame_clock::FrameClock;
-use crate::niri::{Niri, RedrawState, State};
+use crate::osvwm::{Niri, RedrawState, State};
 use crate::render_helpers::debug::draw_damage;
 use crate::render_helpers::renderer::AsGlesRenderer;
 use crate::render_helpers::{resources, shaders, RenderTarget};
@@ -427,7 +427,7 @@ impl Tty {
         let udev_backend =
             UdevBackend::new(session.seat()).context("error creating a udev backend")?;
         let udev_dispatcher = Dispatcher::new(udev_backend, move |event, _, state: &mut State| {
-            state.backend.tty().on_udev_event(&mut state.niri, event);
+            state.backend.tty().on_udev_event(&mut state.osvwm, event);
         });
         event_loop
             .register_dispatcher(udev_dispatcher.clone())
@@ -451,7 +451,7 @@ impl Tty {
 
         event_loop
             .insert_source(notifier, move |event, _, state| {
-                state.backend.tty().on_session_event(&mut state.niri, event);
+                state.backend.tty().on_session_event(&mut state.osvwm, event);
             })
             .unwrap();
 
@@ -510,7 +510,7 @@ impl Tty {
         })
     }
 
-    pub fn init(&mut self, niri: &mut Niri) {
+    pub fn init(&mut self, osvwm: &mut Osvwm) {
         let udev = self.udev_dispatcher.clone();
         let udev = udev.as_source_ref();
 
@@ -540,7 +540,7 @@ impl Tty {
         }
     }
 
-    fn on_udev_event(&mut self, niri: &mut Niri, event: UdevEvent) {
+    fn on_udev_event(&mut self, osvwm: &mut Osvwm, event: UdevEvent) {
         let _span = tracy_client::span!("Tty::on_udev_event");
 
         match event {
@@ -573,7 +573,7 @@ impl Tty {
         }
     }
 
-    fn on_session_event(&mut self, niri: &mut Niri, event: SessionEvent) {
+    fn on_session_event(&mut self, osvwm: &mut Osvwm, event: SessionEvent) {
         let _span = tracy_client::span!("Tty::on_session_event");
 
         match event {
@@ -723,7 +723,7 @@ impl Tty {
         &mut self,
         device_id: dev_t,
         path: &Path,
-        niri: &mut Niri,
+        osvwm: &mut Osvwm,
     ) -> anyhow::Result<()> {
         debug!("adding device: {device_id} {path:?}");
 
@@ -882,7 +882,7 @@ impl Tty {
                 match event {
                     DrmEvent::VBlank(crtc) => {
                         let meta = meta.expect("VBlank events must have metadata");
-                        tty.on_vblank(&mut state.niri, node, crtc, meta);
+                        tty.on_vblank(&mut state.osvwm, node, crtc, meta);
                     }
                     DrmEvent::Error(error) => warn!("DRM error: {error}"),
                 };
@@ -913,7 +913,7 @@ impl Tty {
         Ok(())
     }
 
-    fn device_changed(&mut self, device_id: dev_t, niri: &mut Niri, cleanup: bool) {
+    fn device_changed(&mut self, device_id: dev_t, osvwm: &mut Osvwm, cleanup: bool) {
         debug!("device changed: {device_id}");
 
         let Ok(node) = DrmNode::from_dev_id(device_id) else {
@@ -1077,7 +1077,7 @@ impl Tty {
         self.on_output_config_changed(niri);
     }
 
-    fn device_removed(&mut self, device_id: dev_t, niri: &mut Niri) {
+    fn device_removed(&mut self, device_id: dev_t, osvwm: &mut Osvwm) {
         debug!("removing device: {device_id}");
 
         let Ok(node) = DrmNode::from_dev_id(device_id) else {
@@ -1142,7 +1142,7 @@ impl Tty {
                                 state
                                     .niri
                                     .dmabuf_state
-                                    .destroy_global::<State>(&state.niri.display_handle, global);
+                                    .destroy_global::<State>(&state.osvwm.display_handle, global);
                                 TimeoutAction::Drop
                             },
                         )
@@ -1186,7 +1186,7 @@ impl Tty {
 
     fn connector_connected(
         &mut self,
-        niri: &mut Niri,
+        osvwm: &mut Osvwm,
         node: DrmNode,
         connector: connector::Info,
         crtc: crtc::Handle,
@@ -1505,8 +1505,8 @@ impl Tty {
             // Redraw the new monitor.
             niri.event_loop.insert_idle(move |state| {
                 // Guard against output disconnecting before the idle has a chance to run.
-                if state.niri.output_state.contains_key(&output) {
-                    state.niri.queue_redraw(&output);
+                if state.osvwm.output_state.contains_key(&output) {
+                    state.osvwm.queue_redraw(&output);
                 }
             });
         }
@@ -1514,7 +1514,7 @@ impl Tty {
         Ok(())
     }
 
-    fn connector_disconnected(&mut self, niri: &mut Niri, node: DrmNode, crtc: crtc::Handle) {
+    fn connector_disconnected(&mut self, osvwm: &mut Osvwm, node: DrmNode, crtc: crtc::Handle) {
         let Some(device) = self.devices.get_mut(&node) else {
             debug!("disconnecting connector for crtc: {crtc:?}");
             error!("missing device");
@@ -1563,7 +1563,7 @@ impl Tty {
 
     fn on_vblank(
         &mut self,
-        niri: &mut Niri,
+        osvwm: &mut Osvwm,
         node: DrmNode,
         crtc: crtc::Handle,
         meta: DrmEventMetadata,
@@ -1661,7 +1661,7 @@ impl Tty {
                 };
 
                 let tty = state.backend.tty();
-                tty.on_vblank(&mut state.niri, node, crtc, meta);
+                tty.on_vblank(&mut state.osvwm, node, crtc, meta);
             })
         {
             // Throttled.
@@ -1749,7 +1749,7 @@ impl Tty {
         }
     }
 
-    fn on_estimated_vblank_timer(&self, niri: &mut Niri, output: Output) {
+    fn on_estimated_vblank_timer(&self, osvwm: &mut Osvwm, output: Output) {
         let span = tracy_client::span!("Tty::on_estimated_vblank_timer");
 
         let name = output.name();
@@ -1799,7 +1799,7 @@ impl Tty {
 
     pub fn render(
         &mut self,
-        niri: &mut Niri,
+        osvwm: &mut Osvwm,
         output: &Output,
         target_presentation_time: Duration,
     ) -> RenderResult {
@@ -2059,7 +2059,7 @@ impl Tty {
         }
     }
 
-    fn refresh_ipc_outputs(&self, niri: &mut Niri) {
+    fn refresh_ipc_outputs(&self, osvwm: &mut Osvwm) {
         let _span = tracy_client::span!("Tty::refresh_ipc_outputs");
 
         let mut ipc_outputs = HashMap::new();
@@ -2076,7 +2076,7 @@ impl Tty {
                 let mut current_mode = None;
                 let mut is_custom_mode = false;
 
-                let mut modes: Vec<niri_ipc::Mode> = connector
+                let mut modes: Vec<osv_ipc::Mode> = connector
                     .modes()
                     .iter()
                     .filter(|m| !m.flags().contains(ModeFlags::INTERLACE))
@@ -2086,7 +2086,7 @@ impl Tty {
                             current_mode = Some(idx);
                         }
 
-                        niri_ipc::Mode {
+                        osv_ipc::Mode {
                             width: m.size().0,
                             height: m.size().1,
                             refresh_rate: Mode::from(*m).refresh as u32,
@@ -2100,7 +2100,7 @@ impl Tty {
                     if crtc_mode.mode_type().contains(ModeTypeFlags::USERDEF) {
                         modes.insert(
                             0,
-                            niri_ipc::Mode {
+                            osv_ipc::Mode {
                                 width: crtc_mode.size().0,
                                 height: crtc_mode.size().1,
                                 refresh_rate: Mode::from(crtc_mode).refresh as u32,
@@ -2147,7 +2147,7 @@ impl Tty {
                     OutputId::next()
                 });
 
-                let ipc_output = niri_ipc::Output {
+                let ipc_output = osv_ipc::Output {
                     name: connector_name,
                     make: output_name.make.unwrap_or_else(|| "Unknown".into()),
                     model: output_name.model.unwrap_or_else(|| "Unknown".into()),
@@ -2206,7 +2206,7 @@ impl Tty {
         }
     }
 
-    pub fn set_output_on_demand_vrr(&mut self, niri: &mut Niri, output: &Output, enable_vrr: bool) {
+    pub fn set_output_on_demand_vrr(&mut self, osvwm: &mut Osvwm, output: &Output, enable_vrr: bool) {
         let _span = tracy_client::span!("Tty::set_output_on_demand_vrr");
 
         let output_state = niri.output_state.get_mut(output).unwrap();
@@ -2236,7 +2236,7 @@ impl Tty {
         }
     }
 
-    pub fn update_ignored_nodes_config(&mut self, niri: &mut Niri) {
+    pub fn update_ignored_nodes_config(&mut self, osvwm: &mut Osvwm) {
         let _span = tracy_client::span!("Tty::update_ignored_nodes_config");
 
         // If we're inactive, we can't do anything, so just set a flag for later.
@@ -2309,7 +2309,7 @@ impl Tty {
         false
     }
 
-    pub fn on_output_config_changed(&mut self, niri: &mut Niri) {
+    pub fn on_output_config_changed(&mut self, osvwm: &mut Osvwm) {
         let _span = tracy_client::span!("Tty::on_output_config_changed");
 
         // If we're inactive, we can't do anything, so just set a flag for later.
@@ -2881,7 +2881,7 @@ fn suspend() -> anyhow::Result<()> {
 }
 
 fn queue_estimated_vblank_timer(
-    niri: &mut Niri,
+    osvwm: &mut Osvwm,
     output: Output,
     target_presentation_time: Duration,
 ) {
@@ -3088,7 +3088,7 @@ fn modeinfo_name_slice_from_string(mode_name: &str) -> [core::ffi::c_char; 32] {
 
 fn pick_mode(
     connector: &connector::Info,
-    target: Option<niri_config::output::Mode>,
+    target: Option<osvwm_config::output::Mode>,
 ) -> Option<(control::Mode, bool)> {
     let mut mode = None;
     let mut fallback = false;
@@ -3382,8 +3382,8 @@ unsafe fn init_libinput_plugin_system(libinput: &Libinput) {
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
-    use niri_config::output::Modeline;
-    use niri_ipc::{HSyncPolarity, VSyncPolarity};
+    use osvwm_config::output::Modeline;
+    use osv_ipc::{HSyncPolarity, VSyncPolarity};
 
     use crate::backend::tty::{calculate_drm_mode_from_modeline, calculate_mode_cvt};
 

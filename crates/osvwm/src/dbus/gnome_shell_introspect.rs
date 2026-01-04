@@ -37,7 +37,7 @@ pub struct WindowProperties {
 #[interface(name = "org.gnome.Shell.Introspect")]
 impl Introspect {
     async fn get_windows(&self) -> fdo::Result<HashMap<u64, WindowProperties>> {
-        if let Err(err) = self.to_niri.send(IntrospectToNiri::GetWindows) {
+        if let Err(err) = self.to_niri.send(IntrospectToOsvwm::GetWindows) {
             warn!("error sending message to niri: {err:?}");
             return Err(fdo::Error::Failed("internal error".to_owned()));
         }

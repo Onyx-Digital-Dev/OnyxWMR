@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use anyhow::ensure;
-use niri_config::{
+use osvwm_config::{
     Action, Bind, Color, Config, CornerRadius, GradientInterpolation, Key, Modifiers, MruDirection,
     MruFilter, MruScope, Trigger,
 };
@@ -26,8 +26,8 @@ use smithay::utils::{Logical, Point, Rectangle, Scale, Size, Transform};
 use crate::animation::{Animation, Clock};
 use crate::layout::focus_ring::{FocusRing, FocusRingRenderElement};
 use crate::layout::{Layout, LayoutElement as _, LayoutElementRenderElement};
-use crate::niri::Niri;
-use crate::niri_render_elements;
+use crate::osvwm::Niri;
+use crate::osvwm_render_elements;
 use crate::render_helpers::border::BorderRenderElement;
 use crate::render_helpers::clipped_surface::ClippedSurfaceRenderElement;
 use crate::render_helpers::gradient_fade_texture::GradientFadeTextureRenderElement;
@@ -107,7 +107,7 @@ pub enum MruCloseRequest {
     Confirm,
 }
 
-niri_render_elements! {
+osvwm_render_elements! {
     ThumbnailRenderElement<R> => {
         LayoutElement = LayoutElementRenderElement<R>,
         ClippedSurface = ClippedSurfaceRenderElement<R>,
@@ -115,7 +115,7 @@ niri_render_elements! {
     }
 }
 
-niri_render_elements! {
+osvwm_render_elements! {
     WindowMruUiRenderElement<R> => {
         SolidColor = SolidColorRenderElement,
         TextureElement = PrimaryGpuTextureRenderElement,
@@ -221,7 +221,7 @@ struct Thumbnail {
     size: Size<i32, Logical>,
 
     clock: Clock,
-    config: niri_config::MruPreviews,
+    config: osvwm_config::MruPreviews,
     open_animation: Option<Animation>,
     move_animation: Option<MoveAnimation>,
     title_texture: RefCell<TitleTexture>,
@@ -230,16 +230,16 @@ struct Thumbnail {
 }
 
 impl Thumbnail {
-    fn from_mapped(mapped: &Mapped, clock: Clock, config: niri_config::MruPreviews) -> Self {
+    fn from_mapped(mapped: &Mapped, clock: Clock, config: osvwm_config::MruPreviews) -> Self {
         let app_id = with_toplevel_role(mapped.toplevel(), |role| role.app_id.clone());
 
-        let background = FocusRing::new(niri_config::FocusRing {
+        let background = FocusRing::new(osvwm_config::FocusRing {
             off: false,
             width: 0.,
             active_gradient: None,
             ..Default::default()
         });
-        let border = FocusRing::new(niri_config::FocusRing {
+        let border = FocusRing::new(osvwm_config::FocusRing {
             off: false,
             active_gradient: None,
             ..Default::default()
@@ -272,7 +272,7 @@ impl Thumbnail {
     }
 
     /// Animate thumbnail motion from given location.
-    fn animate_move_from_with_config(&mut self, from: f64, config: niri_config::Animation) {
+    fn animate_move_from_with_config(&mut self, from: f64, config: osvwm_config::Animation) {
         let current_offset = self.render_offset();
 
         // Preserve the previous config if ongoing.
@@ -287,7 +287,7 @@ impl Thumbnail {
         });
     }
 
-    fn animate_open_with_config(&mut self, config: niri_config::Animation) {
+    fn animate_open_with_config(&mut self, config: osvwm_config::Animation) {
         self.open_animation = Some(Animation::new(self.clock.clone(), 0., 1., 0., config));
     }
 
@@ -339,7 +339,7 @@ impl Thumbnail {
     fn render<R: NiriRenderer>(
         &self,
         renderer: &mut R,
-        config: &niri_config::RecentWindows,
+        config: &osvwm_config::RecentWindows,
         mapped: &Mapped,
         preview_geo: Rectangle<f64, Logical>,
         scale: f64,
@@ -572,7 +572,7 @@ impl Thumbnail {
 }
 
 impl WindowMru {
-    pub fn new(niri: &Niri) -> Self {
+    pub fn new(osvwm: &Osvwm) -> Self {
         let Some(output) = niri.layout.active_output() else {
             return Self {
                 thumbnails: Vec::new(),
@@ -880,7 +880,7 @@ impl ViewPos {
     fn animate_from_with_config(
         &mut self,
         from: f64,
-        config: niri_config::Animation,
+        config: osvwm_config::Animation,
         clock: Clock,
     ) {
         // FIXME: also compute and use current velocity.
@@ -1098,7 +1098,7 @@ impl WindowMruUi {
 
     pub fn render_output<R: NiriRenderer>(
         &self,
-        niri: &Niri,
+        osvwm: &Osvwm,
         output: &Output,
         renderer: &mut R,
         target: RenderTarget,
@@ -1553,7 +1553,7 @@ impl Inner {
 
     fn render<R: NiriRenderer>(
         &self,
-        niri: &Niri,
+        osvwm: &Osvwm,
         renderer: &mut R,
         target: RenderTarget,
         push: &mut dyn FnMut(WindowMruUiRenderElement<R>),

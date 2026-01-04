@@ -1,9 +1,9 @@
 use core::f64;
 use std::rc::Rc;
 
-use niri_config::utils::MergeWith as _;
-use niri_config::{Color, CornerRadius, GradientInterpolation};
-use niri_ipc::WindowLayout;
+use osvwm_config::utils::MergeWith as _;
+use osvwm_config::{Color, CornerRadius, GradientInterpolation};
+use osv_ipc::WindowLayout;
 use smithay::backend::renderer::element::{Element, Kind};
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Size};
@@ -17,7 +17,7 @@ use super::{
 };
 use crate::animation::{Animation, Clock};
 use crate::layout::SizingMode;
-use crate::niri_render_elements;
+use crate::osvwm_render_elements;
 use crate::render_helpers::border::BorderRenderElement;
 use crate::render_helpers::clipped_surface::{ClippedSurfaceRenderElement, RoundedCornerDamage};
 use crate::render_helpers::damage::ExtraDamage;
@@ -118,7 +118,7 @@ pub struct Tile<W: LayoutElement> {
     pub(super) options: Rc<Options>,
 }
 
-niri_render_elements! {
+osvwm_render_elements! {
     TileRenderElement<R> => {
         LayoutElement = LayoutElementRenderElement<R>,
         FocusRing = FocusRingRenderElement,
@@ -567,7 +567,7 @@ impl<W: LayoutElement> Tile<W> {
         self.animate_move_x_from_with_config(from, self.options.animations.window_movement.0);
     }
 
-    pub fn animate_move_x_from_with_config(&mut self, from: f64, config: niri_config::Animation) {
+    pub fn animate_move_x_from_with_config(&mut self, from: f64, config: osvwm_config::Animation) {
         let current_offset = self.render_offset().x;
 
         // Preserve the previous config if ongoing.
@@ -586,7 +586,7 @@ impl<W: LayoutElement> Tile<W> {
         self.animate_move_y_from_with_config(from, self.options.animations.window_movement.0);
     }
 
-    pub fn animate_move_y_from_with_config(&mut self, from: f64, config: niri_config::Animation) {
+    pub fn animate_move_y_from_with_config(&mut self, from: f64, config: osvwm_config::Animation) {
         let current_offset = self.render_offset().y;
 
         // Preserve the previous config if ongoing.
@@ -617,7 +617,7 @@ impl<W: LayoutElement> Tile<W> {
         self.move_y_animation = None;
     }
 
-    pub fn animate_alpha(&mut self, from: f64, to: f64, config: niri_config::Animation) {
+    pub fn animate_alpha(&mut self, from: f64, to: f64, config: osvwm_config::Animation) {
         let from = from.clamp(0., 1.);
         let to = to.clamp(0., 1.);
 

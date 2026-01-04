@@ -13,8 +13,8 @@ use std::{env, mem, thread};
 use _server_decoration::server::org_kde_kwin_server_decoration_manager::Mode as KdeDecorationsMode;
 use anyhow::{bail, ensure, Context};
 use calloop::futures::Scheduler;
-use niri_config::debug::PreviewRender;
-use niri_config::{
+use osvwm_config::debug::PreviewRender;
+use osvwm_config::{
     Config, FloatOrInt, Key, Modifiers, OutputName, TrackLayout, WarpMouseToFocusMode,
     WorkspaceReference, Xkb,
 };
@@ -140,7 +140,7 @@ use crate::layer::MappedLayer;
 use crate::layout::tile::TileRenderElement;
 use crate::layout::workspace::{Workspace, WorkspaceId};
 use crate::layout::{HitType, Layout, LayoutElement as _, MonitorRenderElement};
-use crate::niri_render_elements;
+use crate::osvwm_render_elements;
 use crate::protocols::ext_workspace::{self, ExtWorkspaceManagerState};
 use crate::protocols::foreign_toplevel::{self, ForeignToplevelManagerState};
 use crate::protocols::gamma_control::GammaControlManagerState;
@@ -150,7 +150,7 @@ use crate::protocols::screencopy::{Screencopy, ScreencopyBuffer, ScreencopyManag
 use crate::protocols::virtual_pointer::VirtualPointerManagerState;
 use crate::pw_utils::{Cast, PipeWire};
 #[cfg(feature = "xdp-gnome-screencast")]
-use crate::pw_utils::{CastSizeChange, PwToNiri};
+use crate::pw_utils::{CastSizeChange, PwToOsvwm};
 use crate::render_helpers::debug::draw_opaque_regions;
 use crate::render_helpers::primary_gpu_texture::PrimaryGpuTextureRenderElement;
 use crate::render_helpers::renderer::NiriRenderer;
@@ -187,7 +187,7 @@ const CLEAR_COLOR_LOCKED: [f32; 4] = [0.3, 0.1, 0.1, 1.];
 // should be ~1.995 seconds.
 const FRAME_CALLBACK_THROTTLE: Option<Duration> = Some(Duration::from_millis(995));
 
-pub struct Niri {
+pub struct Osvwm {
     pub config: Rc<RefCell<Config>>,
 
     /// Output config from the config file.
@@ -195,7 +195,7 @@ pub struct Niri {
     /// This does not include transient output config changes done via IPC. It is only used when
     /// reloading the config from disk to determine if the output configuration should be reloaded
     /// (and transient changes dropped).
-    pub config_file_output_config: niri_config::Outputs,
+    pub config_file_output_config: osvwm_config::Outputs,
 
     pub config_file_watcher: Option<Watcher>,
 
@@ -388,7 +388,7 @@ pub struct Niri {
     pub pending_mru_commit: Option<PendingMruCommit>,
 
     pub pick_window: Option<async_channel::Sender<Option<MappedId>>>,
-    pub pick_color: Option<async_channel::Sender<Option<niri_ipc::PickedColor>>>,
+    pub pick_color: Option<async_channel::Sender<Option<osv_ipc::PickedColor>>>,
 
     pub debug_draw_opaque_regions: bool,
     pub debug_draw_damage: bool,
@@ -411,7 +411,7 @@ pub struct Niri {
     pub casts: Vec<Cast>,
     pub pipewire: Option<PipeWire>,
     #[cfg(feature = "xdp-gnome-screencast")]
-    pub pw_to_niri: calloop::channel::Sender<PwToNiri>,
+    pub pw_to_osvwm: calloop::channel::Sender<PwToOsvwm>,
 
     // Screencast output for each mapped window.
     #[cfg(feature = "xdp-gnome-screencast")]
@@ -660,7 +660,7 @@ impl KeyboardFocus {
 
 pub struct State {
     pub backend: Backend,
-    pub niri: Niri,
+    pub osvwm: Osvwm,
 }
 
 impl State {
@@ -693,7 +693,7 @@ impl State {
             Backend::Tty(tty)
         };
 
-        let mut niri = Niri::new(
+        let mut osvwm = Osvwm::new(
             config.clone(),
             event_loop,
             stop_signal,
@@ -702,9 +702,9 @@ impl State {
             create_wayland_socket,
             is_session_instance,
         );
-        backend.init(&mut niri);
+        backend.init(&mut osvwm);
 
-        let mut state = Self { backend, niri };
+        let mut state = Self { backend, osvwm };
 
         // Load the xkb_file config option if set by the user.
         state.load_xkb_file();
@@ -725,34 +725,34 @@ impl State {
         // in order to clear completed animations and render elements. Even if we're not rendering,
         // it's good to advance every now and then so the workspace clean-up and animations don't
         // build up (the 1 second frame callback timer will call this line).
-        self.niri.advance_animations();
+        self.osvwm.advance_animations();
 
-        self.niri.redraw_queued_outputs(&mut self.backend);
+        self.osvwm.redraw_queued_outputs(&mut self.backend);
 
         {
             let _span = tracy_client::span!("flush_clients");
-            self.niri.display_handle.flush_clients().unwrap();
+            self.osvwm.display_handle.flush_clients().unwrap();
         }
 
         #[cfg(feature = "dbus")]
-        self.niri.update_locked_hint();
+        self.osvwm.update_locked_hint();
 
         // Clear the time so it's fetched afresh next iteration.
-        self.niri.clock.clear();
-        self.niri.pointer_inactivity_timer_got_reset = false;
-        self.niri.notified_activity_this_iteration = false;
+        self.osvwm.clock.clear();
+        self.osvwm.pointer_inactivity_timer_got_reset = false;
+        self.osvwm.notified_activity_this_iteration = false;
     }
 
     // We monitor both libinput and logind: libinput is always there (including without DBus), but
     // it misses some switch events (e.g. after unsuspend) on some systems.
     pub fn set_lid_closed(&mut self, is_closed: bool) {
-        if self.niri.is_lid_closed == is_closed {
+        if self.osvwm.is_lid_closed == is_closed {
             return;
         }
 
         debug!("laptop lid {}", if is_closed { "closed" } else { "opened" });
-        self.niri.is_lid_closed = is_closed;
-        self.backend.on_output_config_changed(&mut self.niri);
+        self.osvwm.is_lid_closed = is_closed;
+        self.backend.on_output_config_changed(&mut self.osvwm);
     }
 
     fn refresh(&mut self) {
@@ -763,45 +763,45 @@ impl State {
         self.notify_blocker_cleared();
 
         // These should be called periodically, before flushing the clients.
-        self.niri.popups.cleanup();
+        self.osvwm.popups.cleanup();
         self.refresh_popup_grab();
         self.update_keyboard_focus();
 
         // Should be called before refresh_layout() because that one will refresh other window
         // states and then send a pending configure.
-        self.niri.refresh_window_states();
+        self.osvwm.refresh_window_states();
 
         // Needs to be called after updating the keyboard focus.
-        self.niri.refresh_layout();
+        self.osvwm.refresh_layout();
 
-        self.niri.cursor_manager.check_cursor_image_surface_alive();
-        self.niri.refresh_pointer_outputs();
-        self.niri.global_space.refresh();
-        self.niri.refresh_idle_inhibit();
+        self.osvwm.cursor_manager.check_cursor_image_surface_alive();
+        self.osvwm.refresh_pointer_outputs();
+        self.osvwm.global_space.refresh();
+        self.osvwm.refresh_idle_inhibit();
         self.refresh_pointer_contents();
         foreign_toplevel::refresh(self);
         ext_workspace::refresh(self);
 
         #[cfg(feature = "xdp-gnome-screencast")]
-        self.niri.refresh_mapped_cast_outputs();
+        self.osvwm.refresh_mapped_cast_outputs();
         // Should happen before refresh_window_rules(), but after anything that can start or stop
         // screencasts.
         #[cfg(feature = "xdp-gnome-screencast")]
-        self.niri.refresh_mapped_cast_window_rules();
+        self.osvwm.refresh_mapped_cast_window_rules();
 
-        self.niri.refresh_window_rules();
+        self.osvwm.refresh_window_rules();
         self.refresh_ipc_outputs();
         self.ipc_refresh_layout();
         self.ipc_refresh_keyboard_layout_index();
 
         // Needs to be called after updating the keyboard focus.
         #[cfg(feature = "dbus")]
-        self.niri.refresh_a11y();
+        self.osvwm.refresh_a11y();
     }
 
     fn notify_blocker_cleared(&mut self) {
-        let dh = self.niri.display_handle.clone();
-        while let Ok(client) = self.niri.blocker_cleared_rx.try_recv() {
+        let dh = self.osvwm.display_handle.clone();
+        while let Ok(client) = self.osvwm.blocker_cleared_rx.try_recv() {
             trace!("calling blocker_cleared");
             self.client_compositor_state(&client)
                 .blocker_cleared(self, &dh);
@@ -809,14 +809,14 @@ impl State {
     }
 
     pub fn move_cursor(&mut self, location: Point<f64, Logical>) {
-        let mut under = match self.niri.pointer_visibility {
+        let mut under = match self.osvwm.pointer_visibility {
             PointerVisibility::Disabled => PointContents::default(),
-            _ => self.niri.contents_under(location),
+            _ => self.osvwm.contents_under(location),
         };
 
         // Disable the hidden pointer if the contents underneath have changed.
-        if !self.niri.pointer_visibility.is_visible() && self.niri.pointer_contents != under {
-            self.niri.pointer_visibility = PointerVisibility::Disabled;
+        if !self.osvwm.pointer_visibility.is_visible() && self.osvwm.pointer_contents != under {
+            self.osvwm.pointer_visibility = PointerVisibility::Disabled;
 
             // When setting PointerVisibility::Hidden together with pointer contents changing,
             // we can change straight to nothing to avoid one frame of hover. Notably, this can
@@ -824,9 +824,9 @@ impl State {
             under = PointContents::default();
         }
 
-        self.niri.pointer_contents.clone_from(&under);
+        self.osvwm.pointer_contents.clone_from(&under);
 
-        let pointer = &self.niri.seat.get_pointer().unwrap();
+        let pointer = &self.osvwm.seat.get_pointer().unwrap();
         pointer.motion(
             self,
             under.surface,
@@ -838,17 +838,17 @@ impl State {
         );
         pointer.frame(self);
 
-        self.niri.maybe_activate_pointer_constraint();
+        self.osvwm.maybe_activate_pointer_constraint();
 
         // We do not show the pointer on programmatic or keyboard movement.
 
         // FIXME: granular
-        self.niri.queue_redraw_all();
+        self.osvwm.queue_redraw_all();
     }
 
     /// Moves cursor within the specified rectangle, only adjusting coordinates if needed.
     fn move_cursor_to_rect(&mut self, rect: Rectangle<f64, Logical>, mode: CenterCoords) -> bool {
-        let pointer = &self.niri.seat.get_pointer().unwrap();
+        let pointer = &self.osvwm.seat.get_pointer().unwrap();
         let cur_loc = pointer.current_location();
         let x_in_bound = cur_loc.x >= rect.loc.x && cur_loc.x <= rect.loc.x + rect.size.w;
         let y_in_bound = cur_loc.y >= rect.loc.y && cur_loc.y <= rect.loc.y + rect.size.h;
@@ -884,24 +884,24 @@ impl State {
     }
 
     pub fn move_cursor_to_focused_tile(&mut self, mode: CenterCoords) -> bool {
-        if !self.niri.keyboard_focus.is_layout() {
+        if !self.osvwm.keyboard_focus.is_layout() {
             return false;
         }
 
-        if self.niri.tablet_cursor_location.is_some() {
+        if self.osvwm.tablet_cursor_location.is_some() {
             return false;
         }
 
-        let Some(output) = self.niri.layout.active_output() else {
+        let Some(output) = self.osvwm.layout.active_output() else {
             return false;
         };
-        let monitor = self.niri.layout.monitor_for_output(output).unwrap();
+        let monitor = self.osvwm.layout.monitor_for_output(output).unwrap();
 
         let mut rv = false;
         let rect = monitor.active_tile_visual_rectangle();
 
         if let Some(rect) = rect {
-            let output_geo = self.niri.global_space.output_geometry(output).unwrap();
+            let output_geo = self.osvwm.global_space.output_geometry(output).unwrap();
             let mut rect = rect;
             rect.loc += output_geo.loc.to_f64();
             rv = self.move_cursor_to_rect(rect, mode);
@@ -912,35 +912,35 @@ impl State {
 
     pub fn focus_default_monitor(&mut self) {
         // Our default target is the first output in sorted order.
-        let Some(mut target) = self.niri.sorted_outputs.first().cloned() else {
+        let Some(mut target) = self.osvwm.sorted_outputs.first().cloned() else {
             // No outputs are connected.
             return;
         };
 
-        let config = self.niri.config.borrow();
+        let config = self.osvwm.config.borrow();
         for config in &config.outputs.0 {
             if !config.focus_at_startup {
                 continue;
             }
-            if let Some(output) = self.niri.output_by_name_match(&config.name) {
+            if let Some(output) = self.osvwm.output_by_name_match(&config.name) {
                 target = output.clone();
                 break;
             }
         }
         drop(config);
 
-        self.niri.layout.focus_output(&target);
+        self.osvwm.layout.focus_output(&target);
         self.move_cursor_to_output(&target);
     }
 
     /// Focus a specific window, taking care of a potential active output change and cursor
     /// warp.
     pub fn focus_window(&mut self, window: &Window) {
-        let active_output = self.niri.layout.active_output().cloned();
+        let active_output = self.osvwm.layout.active_output().cloned();
 
-        self.niri.layout.activate_window(window);
+        self.osvwm.layout.activate_window(window);
 
-        let new_active = self.niri.layout.active_output().cloned();
+        let new_active = self.osvwm.layout.active_output().cloned();
         if new_active != active_output {
             if !self.maybe_warp_cursor_to_focus_centered() {
                 self.move_cursor_to_output(&new_active.unwrap());
@@ -950,17 +950,17 @@ impl State {
         }
 
         // FIXME: granular
-        self.niri.queue_redraw_all();
+        self.osvwm.queue_redraw_all();
     }
 
     pub fn confirm_mru(&mut self) {
-        if let Some(window) = self.niri.close_mru(MruCloseRequest::Confirm) {
+        if let Some(window) = self.osvwm.close_mru(MruCloseRequest::Confirm) {
             self.focus_window(&window);
         }
     }
 
     pub fn maybe_warp_cursor_to_focus(&mut self) -> bool {
-        let focused = match self.niri.config.borrow().input.warp_mouse_to_focus {
+        let focused = match self.osvwm.config.borrow().input.warp_mouse_to_focus {
             None => return false,
             Some(inner) => match inner.mode {
                 None => CenterCoords::Separately,
@@ -972,7 +972,7 @@ impl State {
     }
 
     pub fn maybe_warp_cursor_to_focus_centered(&mut self) -> bool {
-        let focused = match self.niri.config.borrow().input.warp_mouse_to_focus {
+        let focused = match self.osvwm.config.borrow().input.warp_mouse_to_focus {
             None => return false,
             Some(inner) => match inner.mode {
                 None => CenterCoords::Both,
@@ -984,18 +984,18 @@ impl State {
     }
 
     pub fn refresh_pointer_contents(&mut self) {
-        let _span = tracy_client::span!("Niri::refresh_pointer_contents");
+        let _span = tracy_client::span!("Osvwm::refresh_pointer_contents");
 
-        let pointer = &self.niri.seat.get_pointer().unwrap();
+        let pointer = &self.osvwm.seat.get_pointer().unwrap();
         let location = pointer.current_location();
 
-        if !self.niri.exit_confirm_dialog.is_open()
-            && !self.niri.is_locked()
-            && !self.niri.screenshot_ui.is_open()
+        if !self.osvwm.exit_confirm_dialog.is_open()
+            && !self.osvwm.is_locked()
+            && !self.osvwm.screenshot_ui.is_open()
         {
             // Don't refresh cursor focus during transitions.
-            if let Some((output, _)) = self.niri.output_under(location) {
-                let monitor = self.niri.layout.monitor_for_output(output).unwrap();
+            if let Some((output, _)) = self.osvwm.output_under(location) {
+                let monitor = self.osvwm.layout.monitor_for_output(output).unwrap();
                 if monitor.are_transitions_ongoing() {
                     return;
                 }
@@ -1012,39 +1012,39 @@ impl State {
         // means we may need to redraw.
 
         // FIXME: granular
-        self.niri.queue_redraw_all();
+        self.osvwm.queue_redraw_all();
     }
 
     pub fn update_pointer_contents(&mut self) -> bool {
-        let _span = tracy_client::span!("Niri::update_pointer_contents");
+        let _span = tracy_client::span!("Osvwm::update_pointer_contents");
 
-        let pointer = &self.niri.seat.get_pointer().unwrap();
+        let pointer = &self.osvwm.seat.get_pointer().unwrap();
         let location = pointer.current_location();
-        let mut under = match self.niri.pointer_visibility {
+        let mut under = match self.osvwm.pointer_visibility {
             PointerVisibility::Disabled => PointContents::default(),
-            _ => self.niri.contents_under(location),
+            _ => self.osvwm.contents_under(location),
         };
 
         // We're not changing the global cursor location here, so if the contents did not change,
         // then nothing changed.
-        if self.niri.pointer_contents == under {
+        if self.osvwm.pointer_contents == under {
             return false;
         }
 
         // Disable the hidden pointer if the contents underneath have changed.
-        if !self.niri.pointer_visibility.is_visible() {
-            self.niri.pointer_visibility = PointerVisibility::Disabled;
+        if !self.osvwm.pointer_visibility.is_visible() {
+            self.osvwm.pointer_visibility = PointerVisibility::Disabled;
 
             // When setting PointerVisibility::Hidden together with pointer contents changing,
             // we can change straight to nothing to avoid one frame of hover. Notably, this can
             // be triggered through warp-mouse-to-focus combined with hide-when-typing.
             under = PointContents::default();
-            if self.niri.pointer_contents == under {
+            if self.osvwm.pointer_contents == under {
                 return false;
             }
         }
 
-        self.niri.pointer_contents.clone_from(&under);
+        self.osvwm.pointer_contents.clone_from(&under);
 
         pointer.motion(
             self,
@@ -1056,33 +1056,33 @@ impl State {
             },
         );
 
-        self.niri.maybe_activate_pointer_constraint();
+        self.osvwm.maybe_activate_pointer_constraint();
 
         true
     }
 
     pub fn move_cursor_to_output(&mut self, output: &Output) {
-        let geo = self.niri.global_space.output_geometry(output).unwrap();
+        let geo = self.osvwm.global_space.output_geometry(output).unwrap();
         self.move_cursor(center(geo).to_f64());
     }
 
     pub fn refresh_popup_grab(&mut self) {
-        if let Some(grab) = &mut self.niri.popup_grab {
+        if let Some(grab) = &mut self.osvwm.popup_grab {
             if grab.grab.has_ended() {
-                self.niri.popup_grab = None;
+                self.osvwm.popup_grab = None;
             }
         }
     }
 
     pub fn update_keyboard_focus(&mut self) {
         // Clean up on-demand layer surface focus if necessary.
-        if let Some(surface) = &self.niri.layer_shell_on_demand_focus {
+        if let Some(surface) = &self.osvwm.layer_shell_on_demand_focus {
             // Still alive and has on-demand interactivity.
             let mut good = surface.alive()
                 && surface.cached_state().keyboard_interactivity
                     == wlr_layer::KeyboardInteractivity::OnDemand;
 
-            if let Some(mapped) = self.niri.mapped_layer_surfaces.get(surface) {
+            if let Some(mapped) = self.osvwm.mapped_layer_surfaces.get(surface) {
                 // Check if it moved to the overview backdrop.
                 if mapped.place_within_backdrop() {
                     good = false;
@@ -1093,28 +1093,28 @@ impl State {
             }
 
             if !good {
-                self.niri.layer_shell_on_demand_focus = None;
+                self.osvwm.layer_shell_on_demand_focus = None;
             }
         }
 
         // Compute the current focus.
-        let focus = if self.niri.exit_confirm_dialog.is_open() {
+        let focus = if self.osvwm.exit_confirm_dialog.is_open() {
             KeyboardFocus::ExitConfirmDialog
-        } else if self.niri.is_locked() {
+        } else if self.osvwm.is_locked() {
             KeyboardFocus::LockScreen {
-                surface: self.niri.lock_surface_focus(),
+                surface: self.osvwm.lock_surface_focus(),
             }
-        } else if self.niri.screenshot_ui.is_open() {
+        } else if self.osvwm.screenshot_ui.is_open() {
             KeyboardFocus::ScreenshotUi
-        } else if self.niri.window_mru_ui.is_open() {
+        } else if self.osvwm.window_mru_ui.is_open() {
             KeyboardFocus::Mru
-        } else if let Some(output) = self.niri.layout.active_output() {
-            let mon = self.niri.layout.monitor_for_output(output).unwrap();
+        } else if let Some(output) = self.osvwm.layout.active_output() {
+            let mon = self.osvwm.layout.monitor_for_output(output).unwrap();
             let layers = layer_map_for_output(output);
 
             // Explicitly check for layer-shell popup grabs here, our keyboard focus will stay on
             // the root layer surface while it has grabs.
-            let layer_grab = self.niri.popup_grab.as_ref().and_then(|g| {
+            let layer_grab = self.osvwm.popup_grab.as_ref().and_then(|g| {
                 layers
                     .layer_for_surface(&g.root, WindowSurfaceType::TOPLEVEL)
                     .and_then(|l| l.can_receive_keyboard_focus().then(|| (&g.root, l.layer())))
@@ -1126,7 +1126,7 @@ impl State {
             };
 
             let layout_focus = || {
-                self.niri
+                self.osvwm
                     .layout
                     .focus()
                     .map(|win| win.toplevel().wl_surface().clone())
@@ -1143,7 +1143,7 @@ impl State {
                         return None;
                     }
 
-                    let mapped = self.niri.mapped_layer_surfaces.get(surface)?;
+                    let mapped = self.osvwm.mapped_layer_surfaces.get(surface)?;
                     if mapped.place_within_backdrop() {
                         return None;
                     }
@@ -1156,7 +1156,7 @@ impl State {
             let on_d_focus_on_layer = |layer| {
                 layers.layers_on(layer).find_map(|surface| {
                     let is_on_demand_surface =
-                        Some(surface) == self.niri.layer_shell_on_demand_focus.as_ref();
+                        Some(surface) == self.osvwm.layer_shell_on_demand_focus.as_ref();
                     is_on_demand_surface
                         .then(|| surface.wl_surface().clone())
                         .map(|surface| KeyboardFocus::LayerShell { surface })
@@ -1167,7 +1167,7 @@ impl State {
             let focus_on_layer =
                 |layer| excl_focus_on_layer(layer).or_else(|| on_d_focus_on_layer(layer));
 
-            let is_overview_open = self.niri.layout.is_overview_open();
+            let is_overview_open = self.osvwm.layout.is_overview_open();
 
             let mut surface = grab_on_layer(Layer::Overlay);
             // FIXME: we shouldn't prioritize the top layer grabs over regular overlay input or a
@@ -1209,20 +1209,20 @@ impl State {
             KeyboardFocus::Layout { surface: None }
         };
 
-        let keyboard = self.niri.seat.get_keyboard().unwrap();
-        if self.niri.keyboard_focus != focus {
+        let keyboard = self.osvwm.seat.get_keyboard().unwrap();
+        if self.osvwm.keyboard_focus != focus {
             trace!(
                 "keyboard focus changed from {:?} to {:?}",
-                self.niri.keyboard_focus,
+                self.osvwm.keyboard_focus,
                 focus
             );
 
             // Tell the windows their new focus state for window rule purposes.
             if let KeyboardFocus::Layout {
                 surface: Some(surface),
-            } = &self.niri.keyboard_focus
+            } = &self.osvwm.keyboard_focus
             {
-                if let Some((mapped, _)) = self.niri.layout.find_window_and_output_mut(surface) {
+                if let Some((mapped, _)) = self.osvwm.layout.find_window_and_output_mut(surface) {
                     mapped.set_is_focused(false);
                 }
             }
@@ -1230,7 +1230,7 @@ impl State {
                 surface: Some(surface),
             } = &focus
             {
-                if let Some((mapped, _)) = self.niri.layout.find_window_and_output_mut(surface) {
+                if let Some((mapped, _)) = self.osvwm.layout.find_window_and_output_mut(surface) {
                     mapped.set_is_focused(true);
 
                     // If `mapped` does not have a focus timestamp, then the window is newly
@@ -1240,7 +1240,7 @@ impl State {
                     // period has gone by without the focus having elsewhere.
                     let stamp = get_monotonic_time();
 
-                    let debounce = self.niri.config.borrow().recent_windows.debounce_ms;
+                    let debounce = self.osvwm.config.borrow().recent_windows.debounce_ms;
                     let debounce = Duration::from_millis(u64::from(debounce));
 
                     if mapped.get_focus_timestamp().is_none() || debounce.is_zero() {
@@ -1252,24 +1252,24 @@ impl State {
                             .niri
                             .event_loop
                             .insert_source(timer, move |_, _, state| {
-                                state.niri.mru_apply_keyboard_commit();
+                                state.osvwm.mru_apply_keyboard_commit();
                                 TimeoutAction::Drop
                             })
                             .unwrap();
                         if let Some(PendingMruCommit { token, .. }) =
-                            self.niri.pending_mru_commit.replace(PendingMruCommit {
+                            self.osvwm.pending_mru_commit.replace(PendingMruCommit {
                                 id: mapped.id(),
                                 token: focus_token,
                                 stamp,
                             })
                         {
-                            self.niri.event_loop.remove(token);
+                            self.osvwm.event_loop.remove(token);
                         }
                     }
                 }
             }
 
-            if let Some(grab) = self.niri.popup_grab.as_mut() {
+            if let Some(grab) = self.osvwm.popup_grab.as_mut() {
                 if grab.has_keyboard_grab && Some(&grab.root) != focus.surface() {
                     trace!(
                         "grab root {:?} is not the new focus {:?}, ungrabbing",
@@ -1279,16 +1279,16 @@ impl State {
 
                     grab.grab.ungrab(PopupUngrabStrategy::All);
                     keyboard.unset_grab(self);
-                    self.niri.seat.get_pointer().unwrap().unset_grab(
+                    self.osvwm.seat.get_pointer().unwrap().unset_grab(
                         self,
                         SERIAL_COUNTER.next_serial(),
                         get_monotonic_time().as_millis() as u32,
                     );
-                    self.niri.popup_grab = None;
+                    self.osvwm.popup_grab = None;
                 }
             }
 
-            if self.niri.config.borrow().input.keyboard.track_layout == TrackLayout::Window {
+            if self.osvwm.config.borrow().input.keyboard.track_layout == TrackLayout::Window {
                 let current_layout = keyboard.with_xkb_state(self, |context| {
                     let xkb = context.xkb().lock().unwrap();
                     xkb.active_layout()
@@ -1296,7 +1296,7 @@ impl State {
 
                 let mut new_layout = current_layout;
                 // Store the currently active layout for the surface.
-                if let Some(current_focus) = self.niri.keyboard_focus.surface() {
+                if let Some(current_focus) = self.osvwm.keyboard_focus.surface() {
                     with_states(current_focus, |data| {
                         let cell = data
                             .data_map
@@ -1323,11 +1323,11 @@ impl State {
                 }
             }
 
-            self.niri.keyboard_focus.clone_from(&focus);
+            self.osvwm.keyboard_focus.clone_from(&focus);
             keyboard.set_focus(self, focus.into_surface(), SERIAL_COUNTER.next_serial());
 
             // FIXME: can be more granular.
-            self.niri.queue_redraw_all();
+            self.osvwm.queue_redraw_all();
         }
     }
 
@@ -1340,7 +1340,7 @@ impl State {
 
         let keymap = std::fs::read_to_string(xkb_file).context("failed to read xkb_file")?;
 
-        let xkb = self.niri.seat.get_keyboard().unwrap();
+        let xkb = self.osvwm.seat.get_keyboard().unwrap();
         xkb.set_keymap_from_string(self, keymap)
             .context("failed to set keymap")?;
 
@@ -1348,7 +1348,7 @@ impl State {
     }
 
     fn load_xkb_file(&mut self) {
-        let xkb_file = self.niri.config.borrow().input.keyboard.xkb.file.clone();
+        let xkb_file = self.osvwm.config.borrow().input.keyboard.xkb.file.clone();
         if let Some(xkb_file) = xkb_file {
             if let Err(err) = self.set_xkb_file(xkb_file) {
                 warn!("error loading xkb_file: {err:?}");
@@ -1357,7 +1357,7 @@ impl State {
     }
 
     fn set_xkb_config(&mut self, xkb: XkbConfig) {
-        let keyboard = self.niri.seat.get_keyboard().unwrap();
+        let keyboard = self.osvwm.seat.get_keyboard().unwrap();
         let num_lock = keyboard.modifier_state().num_lock;
         if let Err(err) = keyboard.set_xkb_config(self, xkb) {
             warn!("error updating xkb config: {err:?}");
@@ -1378,42 +1378,42 @@ impl State {
         let mut config = match config {
             Ok(config) => config,
             Err(()) => {
-                self.niri.config_error_notification.show();
-                self.niri.queue_redraw_all();
+                self.osvwm.config_error_notification.show();
+                self.osvwm.queue_redraw_all();
 
                 #[cfg(feature = "dbus")]
-                self.niri.a11y_announce_config_error();
+                self.osvwm.a11y_announce_config_error();
 
                 return;
             }
         };
 
-        self.niri.config_error_notification.hide();
+        self.osvwm.config_error_notification.hide();
 
         // Find & orphan removed named workspaces.
         let mut removed_workspaces: Vec<String> = vec![];
-        for ws in &self.niri.config.borrow().workspaces {
+        for ws in &self.osvwm.config.borrow().workspaces {
             if !config.workspaces.iter().any(|w| w.name == ws.name) {
                 removed_workspaces.push(ws.name.0.clone());
             }
         }
         for name in removed_workspaces {
-            self.niri.layout.unname_workspace(&name);
+            self.osvwm.layout.unname_workspace(&name);
         }
 
-        self.niri.layout.update_config(&config);
-        for mapped in self.niri.mapped_layer_surfaces.values_mut() {
+        self.osvwm.layout.update_config(&config);
+        for mapped in self.osvwm.mapped_layer_surfaces.values_mut() {
             mapped.update_config(&config);
         }
 
         // Create new named workspaces.
         for ws_config in &config.workspaces {
-            self.niri.layout.ensure_named_workspace(ws_config);
+            self.osvwm.layout.ensure_named_workspace(ws_config);
         }
 
         let rate = 1.0 / config.animations.slowdown.max(0.001);
-        self.niri.clock.set_rate(rate);
-        self.niri
+        self.osvwm.clock.set_rate(rate);
+        self.osvwm
             .clock
             .set_complete_instantly(config.animations.off);
 
@@ -1429,14 +1429,14 @@ impl State {
         let mut cursor_inactivity_timeout_changed = false;
         let mut recent_windows_changed = false;
         let mut xwls_changed = false;
-        let mut old_config = self.niri.config.borrow_mut();
+        let mut old_config = self.osvwm.config.borrow_mut();
 
         // Reload the cursor.
         if config.cursor != old_config.cursor {
-            self.niri
+            self.osvwm
                 .cursor_manager
                 .reload(&config.cursor.xcursor_theme, config.cursor.xcursor_size);
-            self.niri.cursor_texture_cache.clear();
+            self.osvwm.cursor_texture_cache.clear();
         }
 
         // We need &mut self to reload the xkb config, so just store it here.
@@ -1448,7 +1448,7 @@ impl State {
         if config.input.keyboard.repeat_rate != old_config.input.keyboard.repeat_rate
             || config.input.keyboard.repeat_delay != old_config.input.keyboard.repeat_delay
         {
-            let keyboard = self.niri.seat.get_keyboard().unwrap();
+            let keyboard = self.osvwm.seat.get_keyboard().unwrap();
             keyboard.change_repeat_info(
                 config.input.keyboard.repeat_rate.into(),
                 config.input.keyboard.repeat_delay.into(),
@@ -1468,9 +1468,9 @@ impl State {
         let ignored_nodes_changed =
             config.debug.ignored_drm_devices != old_config.debug.ignored_drm_devices;
 
-        if config.outputs != self.niri.config_file_output_config {
+        if config.outputs != self.osvwm.config_file_output_config {
             output_config_changed = true;
-            self.niri
+            self.osvwm
                 .config_file_output_config
                 .clone_from(&config.outputs);
         } else {
@@ -1482,12 +1482,12 @@ impl State {
         let binds_changed = config.binds != old_config.binds;
         let new_mod_key = self.backend.mod_key(&config);
         if new_mod_key != self.backend.mod_key(&old_config) || binds_changed {
-            self.niri
+            self.osvwm
                 .hotkey_overlay
                 .on_hotkey_config_updated(new_mod_key);
-            self.niri.mods_with_mouse_binds = mods_with_mouse_binds(new_mod_key, &config.binds);
-            self.niri.mods_with_wheel_binds = mods_with_wheel_binds(new_mod_key, &config.binds);
-            self.niri.mods_with_finger_scroll_binds =
+            self.osvwm.mods_with_mouse_binds = mods_with_mouse_binds(new_mod_key, &config.binds);
+            self.osvwm.mods_with_wheel_binds = mods_with_wheel_binds(new_mod_key, &config.binds);
+            self.osvwm.mods_with_finger_scroll_binds =
                 mods_with_finger_scroll_binds(new_mod_key, &config.binds);
         }
 
@@ -1587,7 +1587,7 @@ impl State {
                 // If xkb is unset in the niri config, use settings from locale1.
                 if xkb == Xkb::default() {
                     trace!("using xkb from locale1");
-                    xkb = self.niri.xkb_from_locale1.clone().unwrap_or_default();
+                    xkb = self.osvwm.xkb_from_locale1.clone().unwrap_or_default();
                 }
 
                 self.set_xkb_config(xkb.to_xkb_config());
@@ -1597,14 +1597,14 @@ impl State {
         }
 
         if libinput_config_changed {
-            let config = self.niri.config.borrow();
-            for mut device in self.niri.devices.iter().cloned() {
+            let config = self.osvwm.config.borrow();
+            for mut device in self.osvwm.devices.iter().cloned() {
                 apply_libinput_settings(&config.input, &mut device);
             }
         }
 
         if ignored_nodes_changed {
-            self.backend.update_ignored_nodes_config(&mut self.niri);
+            self.backend.update_ignored_nodes_config(&mut self.osvwm);
         }
 
         if output_config_changed {
@@ -1612,42 +1612,42 @@ impl State {
         }
 
         if window_rules_changed {
-            self.niri.recompute_window_rules();
+            self.osvwm.recompute_window_rules();
         }
 
         if layer_rules_changed {
-            self.niri.recompute_layer_rules();
+            self.osvwm.recompute_layer_rules();
         }
 
         if shaders_changed {
-            self.niri.update_shaders();
+            self.osvwm.update_shaders();
         }
 
         if cursor_inactivity_timeout_changed {
             // Force reset due to timeout change.
-            self.niri.pointer_inactivity_timer_got_reset = false;
-            self.niri.reset_pointer_inactivity_timer();
+            self.osvwm.pointer_inactivity_timer_got_reset = false;
+            self.osvwm.reset_pointer_inactivity_timer();
         }
 
         if binds_changed {
-            self.niri.window_mru_ui.update_binds();
+            self.osvwm.window_mru_ui.update_binds();
         }
 
         if recent_windows_changed {
-            self.niri.window_mru_ui.update_config();
+            self.osvwm.window_mru_ui.update_config();
         }
 
         if xwls_changed {
             // If xwl-s was previously working and is now off, we don't try to kill it or stop
             // watching the sockets, for simplicity's sake.
-            let was_working = self.niri.satellite.is_some();
+            let was_working = self.osvwm.satellite.is_some();
 
             // Try to start, or restart in case the user corrected the path or something.
             xwayland::satellite::setup(self);
 
-            let config = self.niri.config.borrow();
+            let config = self.osvwm.config.borrow();
             let display_name = (!config.xwayland_satellite.off)
-                .then_some(self.niri.satellite.as_ref())
+                .then_some(self.osvwm.satellite.as_ref())
                 .flatten()
                 .map(|satellite| satellite.display_name().to_owned());
 
@@ -1666,16 +1666,16 @@ impl State {
         // global suddenly appearing? Either way, right now it's live-reloaded in a sense that new
         // clients will use the new xdg-decoration setting.
 
-        self.niri.queue_redraw_all();
+        self.osvwm.queue_redraw_all();
     }
 
     pub fn reload_output_config(&mut self) {
         let mut resized_outputs = vec![];
         let mut recolored_outputs = vec![];
 
-        for output in self.niri.global_space.outputs() {
+        for output in self.osvwm.global_space.outputs() {
             let name = output.user_data().get::<OutputName>().unwrap();
-            let full_config = self.niri.config.borrow_mut();
+            let full_config = self.osvwm.config.borrow_mut();
             let config = full_config.outputs.find(name);
 
             let scale = config
@@ -1706,7 +1706,7 @@ impl State {
                     Some(output::Scale::Fractional(scale)),
                     None,
                 );
-                self.niri.ipc_outputs_changed = true;
+                self.osvwm.ipc_outputs_changed = true;
                 resized_outputs.push(output.clone());
             }
 
@@ -1717,14 +1717,14 @@ impl State {
             backdrop_color[3] = 1.;
             let backdrop_color = Color32F::from(backdrop_color);
 
-            if let Some(state) = self.niri.output_state.get_mut(output) {
+            if let Some(state) = self.osvwm.output_state.get_mut(output) {
                 if state.backdrop_buffer.color() != backdrop_color {
                     state.backdrop_buffer.set_color(backdrop_color);
                     recolored_outputs.push(output.clone());
                 }
             }
 
-            for mon in self.niri.layout.monitors_mut() {
+            for mon in self.osvwm.layout.monitors_mut() {
                 if mon.output() != output {
                     continue;
                 }
@@ -1746,34 +1746,34 @@ impl State {
         }
 
         for output in resized_outputs {
-            self.niri.output_resized(&output);
+            self.osvwm.output_resized(&output);
         }
 
         for output in recolored_outputs {
-            self.niri.queue_redraw(&output);
+            self.osvwm.queue_redraw(&output);
         }
 
-        self.backend.on_output_config_changed(&mut self.niri);
+        self.backend.on_output_config_changed(&mut self.osvwm);
 
-        self.niri.reposition_outputs(None);
+        self.osvwm.reposition_outputs(None);
 
-        if let Some(touch) = self.niri.seat.get_touch() {
+        if let Some(touch) = self.osvwm.seat.get_touch() {
             touch.cancel(self);
         }
 
-        let config = self.niri.config.borrow().outputs.clone();
-        self.niri.output_management_state.on_config_changed(config);
+        let config = self.osvwm.config.borrow().outputs.clone();
+        self.osvwm.output_management_state.on_config_changed(config);
     }
 
     pub fn modify_output_config<F>(&mut self, name: &str, fun: F)
     where
-        F: FnOnce(&mut niri_config::Output),
+        F: FnOnce(&mut osvwm_config::Output),
     {
         // Try hard to find the output config section corresponding to the output set by the
         // user. Since if we add a new section and some existing section also matches the
         // output, then our new section won't do anything.
         let temp;
-        let match_name = if let Some(output) = self.niri.output_by_name_match(name) {
+        let match_name = if let Some(output) = self.osvwm.output_by_name_match(name) {
             output.user_data().get::<OutputName>().unwrap()
         } else if let Some(output_name) = self
             .backend
@@ -1793,11 +1793,11 @@ impl State {
             &temp
         };
 
-        let mut config = self.niri.config.borrow_mut();
+        let mut config = self.osvwm.config.borrow_mut();
         let config = if let Some(config) = config.outputs.find_mut(match_name) {
             config
         } else {
-            config.outputs.0.push(niri_config::Output {
+            config.outputs.0.push(osvwm_config::Output {
                 // Save name as set by the user.
                 name: String::from(name),
                 ..Default::default()
@@ -1808,25 +1808,25 @@ impl State {
         fun(config);
     }
 
-    pub fn apply_transient_output_config(&mut self, name: &str, action: niri_ipc::OutputAction) {
+    pub fn apply_transient_output_config(&mut self, name: &str, action: osv_ipc::OutputAction) {
         self.modify_output_config(name, move |config| match action {
-            niri_ipc::OutputAction::Off => config.off = true,
-            niri_ipc::OutputAction::On => config.off = false,
-            niri_ipc::OutputAction::Mode { mode } => {
+            osv_ipc::OutputAction::Off => config.off = true,
+            osv_ipc::OutputAction::On => config.off = false,
+            osv_ipc::OutputAction::Mode { mode } => {
                 config.mode = match mode {
-                    niri_ipc::ModeToSet::Automatic => None,
-                    niri_ipc::ModeToSet::Specific(mode) => Some(niri_config::output::Mode {
+                    osv_ipc::ModeToSet::Automatic => None,
+                    osv_ipc::ModeToSet::Specific(mode) => Some(osvwm_config::output::Mode {
                         custom: false,
                         mode,
                     }),
                 };
                 config.modeline = None;
             }
-            niri_ipc::OutputAction::CustomMode { mode } => {
-                config.mode = Some(niri_config::output::Mode { custom: true, mode });
+            osv_ipc::OutputAction::CustomMode { mode } => {
+                config.mode = Some(osvwm_config::output::Mode { custom: true, mode });
                 config.modeline = None;
             }
-            niri_ipc::OutputAction::Modeline {
+            osv_ipc::OutputAction::Modeline {
                 clock,
                 hdisplay,
                 hsync_start,
@@ -1840,7 +1840,7 @@ impl State {
                 vsync_polarity,
             } => {
                 // Do not reset config.mode to None since it's used as a fallback.
-                config.modeline = Some(niri_config::output::Modeline {
+                config.modeline = Some(osvwm_config::output::Modeline {
                     clock,
                     hdisplay,
                     hsync_start,
@@ -1854,25 +1854,25 @@ impl State {
                     vsync_polarity,
                 })
             }
-            niri_ipc::OutputAction::Scale { scale } => {
+            osv_ipc::OutputAction::Scale { scale } => {
                 config.scale = match scale {
-                    niri_ipc::ScaleToSet::Automatic => None,
-                    niri_ipc::ScaleToSet::Specific(scale) => Some(FloatOrInt(scale)),
+                    osv_ipc::ScaleToSet::Automatic => None,
+                    osv_ipc::ScaleToSet::Specific(scale) => Some(FloatOrInt(scale)),
                 }
             }
-            niri_ipc::OutputAction::Transform { transform } => config.transform = transform,
-            niri_ipc::OutputAction::Position { position } => {
+            osv_ipc::OutputAction::Transform { transform } => config.transform = transform,
+            osv_ipc::OutputAction::Position { position } => {
                 config.position = match position {
-                    niri_ipc::PositionToSet::Automatic => None,
-                    niri_ipc::PositionToSet::Specific(position) => Some(niri_config::Position {
+                    osv_ipc::PositionToSet::Automatic => None,
+                    osv_ipc::PositionToSet::Specific(position) => Some(osvwm_config::Position {
                         x: position.x,
                         y: position.y,
                     }),
                 }
             }
-            niri_ipc::OutputAction::Vrr { vrr } => {
+            osv_ipc::OutputAction::Vrr { vrr } => {
                 config.variable_refresh_rate = if vrr.vrr {
-                    Some(niri_config::Vrr {
+                    Some(osvwm_config::Vrr {
                         on_demand: vrr.on_demand,
                     })
                 } else {
@@ -1885,10 +1885,10 @@ impl State {
     }
 
     pub fn refresh_ipc_outputs(&mut self) {
-        if !self.niri.ipc_outputs_changed {
+        if !self.osvwm.ipc_outputs_changed {
             return;
         }
-        self.niri.ipc_outputs_changed = false;
+        self.osvwm.ipc_outputs_changed = false;
 
         let _span = tracy_client::span!("State::refresh_ipc_outputs");
 
@@ -1903,64 +1903,64 @@ impl State {
         }
 
         #[cfg(feature = "dbus")]
-        self.niri.on_ipc_outputs_changed();
+        self.osvwm.on_ipc_outputs_changed();
 
         let new_config = self.backend.ipc_outputs().lock().unwrap().clone();
-        self.niri.output_management_state.notify_changes(new_config);
+        self.osvwm.output_management_state.notify_changes(new_config);
     }
 
     pub fn open_screenshot_ui(&mut self, show_pointer: bool, path: Option<String>) {
-        if self.niri.is_locked() || self.niri.screenshot_ui.is_open() {
+        if self.osvwm.is_locked() || self.osvwm.screenshot_ui.is_open() {
             return;
         }
 
         // Redraw the pointer if hidden through cursor{} options
-        if self.niri.pointer_visibility == PointerVisibility::Hidden {
-            self.niri.pointer_visibility = PointerVisibility::Visible;
-            self.niri.queue_redraw_all();
+        if self.osvwm.pointer_visibility == PointerVisibility::Hidden {
+            self.osvwm.pointer_visibility = PointerVisibility::Visible;
+            self.osvwm.queue_redraw_all();
         }
 
         let default_output = self
             .niri
             .output_under_cursor()
-            .or_else(|| self.niri.layout.active_output().cloned());
+            .or_else(|| self.osvwm.layout.active_output().cloned());
         let Some(default_output) = default_output else {
             return;
         };
 
-        self.niri.update_render_elements(None);
+        self.osvwm.update_render_elements(None);
 
         let Some(screenshots) = self
             .backend
-            .with_primary_renderer(|renderer| self.niri.capture_screenshots(renderer).collect())
+            .with_primary_renderer(|renderer| self.osvwm.capture_screenshots(renderer).collect())
         else {
             return;
         };
 
         // Now that we captured the screenshots, clear grabs like drag-and-drop, etc.
-        self.niri.seat.get_pointer().unwrap().unset_grab(
+        self.osvwm.seat.get_pointer().unwrap().unset_grab(
             self,
             SERIAL_COUNTER.next_serial(),
             get_monotonic_time().as_millis() as u32,
         );
-        if let Some(touch) = self.niri.seat.get_touch() {
+        if let Some(touch) = self.osvwm.seat.get_touch() {
             touch.unset_grab(self);
         }
 
         self.backend.with_primary_renderer(|renderer| {
-            self.niri
+            self.osvwm
                 .screenshot_ui
                 .open(renderer, screenshots, default_output, show_pointer, path)
         });
 
-        self.niri
+        self.osvwm
             .cursor_manager
             .set_cursor_image(CursorImageStatus::Named(CursorIcon::Crosshair));
-        self.niri.queue_redraw_all();
+        self.osvwm.queue_redraw_all();
     }
 
-    pub fn handle_pick_color(&mut self, tx: async_channel::Sender<Option<niri_ipc::PickedColor>>) {
-        let pointer = self.niri.seat.get_pointer().unwrap();
+    pub fn handle_pick_color(&mut self, tx: async_channel::Sender<Option<osv_ipc::PickedColor>>) {
+        let pointer = self.osvwm.seat.get_pointer().unwrap();
         let start_data = PointerGrabStartData {
             focus: None,
             button: 0,
@@ -1968,23 +1968,23 @@ impl State {
         };
         let grab = PickColorGrab::new(start_data);
         pointer.set_grab(self, grab, SERIAL_COUNTER.next_serial(), Focus::Clear);
-        self.niri.pick_color = Some(tx);
-        self.niri
+        self.osvwm.pick_color = Some(tx);
+        self.osvwm
             .cursor_manager
             .set_cursor_image(CursorImageStatus::Named(CursorIcon::Crosshair));
-        self.niri.queue_redraw_all();
+        self.osvwm.queue_redraw_all();
     }
 
     pub fn confirm_screenshot(&mut self, write_to_disk: bool) {
-        let ScreenshotUi::Open { path, .. } = &mut self.niri.screenshot_ui else {
+        let ScreenshotUi::Open { path, .. } = &mut self.osvwm.screenshot_ui else {
             return;
         };
         let path = path.take();
 
         self.backend.with_primary_renderer(|renderer| {
-            match self.niri.screenshot_ui.capture(renderer) {
+            match self.osvwm.screenshot_ui.capture(renderer) {
                 Ok((size, pixels)) => {
-                    if let Err(err) = self.niri.save_screenshot(size, pixels, write_to_disk, path) {
+                    if let Err(err) = self.osvwm.save_screenshot(size, pixels, write_to_disk, path) {
                         warn!("error saving screenshot: {err:?}");
                     }
                 }
@@ -1994,26 +1994,26 @@ impl State {
             }
         });
 
-        self.niri.screenshot_ui.close();
-        self.niri
+        self.osvwm.screenshot_ui.close();
+        self.osvwm
             .cursor_manager
             .set_cursor_image(CursorImageStatus::default_named());
-        self.niri.queue_redraw_all();
+        self.osvwm.queue_redraw_all();
     }
 
     #[cfg(feature = "xdp-gnome-screencast")]
-    pub fn on_pw_msg(&mut self, msg: PwToNiri) {
+    pub fn on_pw_msg(&mut self, msg: PwToOsvwm) {
         match msg {
-            PwToNiri::StopCast { session_id } => self.niri.stop_cast(session_id),
-            PwToNiri::Redraw { stream_id } => self.redraw_cast(stream_id),
-            PwToNiri::FatalError => {
+            PwToOsvwm::StopCast { session_id } => self.osvwm.stop_cast(session_id),
+            PwToOsvwm::Redraw { stream_id } => self.redraw_cast(stream_id),
+            PwToOsvwm::FatalError => {
                 warn!("stopping PipeWire due to fatal error");
-                if let Some(pw) = self.niri.pipewire.take() {
-                    let ids: Vec<_> = self.niri.casts.iter().map(|cast| cast.session_id).collect();
+                if let Some(pw) = self.osvwm.pipewire.take() {
+                    let ids: Vec<_> = self.osvwm.casts.iter().map(|cast| cast.session_id).collect();
                     for id in ids {
-                        self.niri.stop_cast(id);
+                        self.osvwm.stop_cast(id);
                     }
-                    self.niri.event_loop.remove(pw.token);
+                    self.osvwm.event_loop.remove(pw.token);
                 }
             }
         }
@@ -2023,7 +2023,7 @@ impl State {
     fn redraw_cast(&mut self, stream_id: usize) {
         let _span = tracy_client::span!("State::redraw_cast");
 
-        let casts = &mut self.niri.casts;
+        let casts = &mut self.osvwm.casts;
         let Some(cast) = casts.iter_mut().find(|cast| cast.stream_id == stream_id) else {
             warn!("cast to redraw is missing");
             return;
@@ -2039,18 +2039,18 @@ impl State {
             }
             CastTarget::Output(weak) => {
                 if let Some(output) = weak.upgrade() {
-                    self.niri.queue_redraw(&output);
+                    self.osvwm.queue_redraw(&output);
                 }
             }
             CastTarget::Window { id } => {
-                let mut windows = self.niri.layout.windows();
+                let mut windows = self.osvwm.layout.windows();
                 let Some((_, mapped)) = windows.find(|(_, mapped)| mapped.id().get() == *id) else {
                     return;
                 };
 
                 // Use the cached output since it will be present even if the output was
                 // currently disconnected.
-                let Some(output) = self.niri.mapped_cast_output.get(&mapped.window) else {
+                let Some(output) = self.osvwm.mapped_cast_output.get(&mapped.window) else {
                     return;
                 };
 
@@ -2067,7 +2067,7 @@ impl State {
                         warn!("error updating stream size, stopping screencast: {err:?}");
                         drop(windows);
                         let session_id = cast.session_id;
-                        self.niri.stop_cast(session_id);
+                        self.osvwm.stop_cast(session_id);
                         return;
                     }
                 }
@@ -2103,9 +2103,9 @@ impl State {
                 }
             }
             CastTarget::Window { id } => {
-                let mut windows = self.niri.layout.windows();
+                let mut windows = self.osvwm.layout.windows();
                 if let Some((_, mapped)) = windows.find(|(_, mapped)| mapped.id().get() == *id) {
-                    if let Some(output) = self.niri.mapped_cast_output.get(&mapped.window) {
+                    if let Some(output) = self.osvwm.mapped_cast_output.get(&mapped.window) {
                         refresh = Some(output.current_mode().unwrap().refresh as u32);
                     }
                 }
@@ -2114,7 +2114,7 @@ impl State {
 
         let mut to_redraw = Vec::new();
         let mut to_stop = Vec::new();
-        for cast in &mut self.niri.casts {
+        for cast in &mut self.osvwm.casts {
             if !cast.dynamic_target {
                 continue;
             }
@@ -2143,7 +2143,7 @@ impl State {
         use crate::dbus::mutter_screen_cast::StreamTargetId;
 
         match msg {
-            ScreenCastToNiri::StartCast {
+            ScreenCastToOsvwm::StartCast {
                 session_id,
                 stream_id,
                 target,
@@ -2156,21 +2156,21 @@ impl State {
 
                 let Some(gbm) = self.backend.gbm_device() else {
                     warn!("error starting screencast: no GBM device available");
-                    self.niri.stop_cast(session_id);
+                    self.osvwm.stop_cast(session_id);
                     return;
                 };
 
-                let pw = if let Some(pw) = &self.niri.pipewire {
+                let pw = if let Some(pw) = &self.osvwm.pipewire {
                     pw
                 } else {
-                    match PipeWire::new(self.niri.event_loop.clone(), self.niri.pw_to_niri.clone())
+                    match PipeWire::new(self.osvwm.event_loop.clone(), self.osvwm.pw_to_osvwm.clone())
                     {
-                        Ok(pipewire) => self.niri.pipewire.insert(pipewire),
+                        Ok(pipewire) => self.osvwm.pipewire.insert(pipewire),
                         Err(err) => {
                             warn!(
                                 "error starting screencast: PipeWire failed to initialize: {err:?}"
                             );
-                            self.niri.stop_cast(session_id);
+                            self.osvwm.stop_cast(session_id);
                             return;
                         }
                     }
@@ -2179,11 +2179,11 @@ impl State {
                 let mut dynamic_target = false;
                 let (target, size, refresh, alpha) = match target {
                     StreamTargetId::Output { name } => {
-                        let global_space = &self.niri.global_space;
+                        let global_space = &self.osvwm.global_space;
                         let output = global_space.outputs().find(|out| out.name() == name);
                         let Some(output) = output else {
                             warn!("error starting screencast: requested output is missing");
-                            self.niri.stop_cast(session_id);
+                            self.osvwm.stop_cast(session_id);
                             return;
                         };
 
@@ -2194,7 +2194,7 @@ impl State {
                         (CastTarget::Output(output.downgrade()), size, refresh, false)
                     }
                     StreamTargetId::Window { id }
-                        if id == self.niri.dynamic_cast_id_for_portal.get() =>
+                        if id == self.osvwm.dynamic_cast_id_for_portal.get() =>
                     {
                         dynamic_target = true;
 
@@ -2203,19 +2203,19 @@ impl State {
                         (CastTarget::Nothing, Size::from((1, 1)), 1000, true)
                     }
                     StreamTargetId::Window { id } => {
-                        let Some(window) = self.niri.layout.windows().find_map(|(_, mapped)| {
+                        let Some(window) = self.osvwm.layout.windows().find_map(|(_, mapped)| {
                             (mapped.id().get() == id).then_some(&mapped.window)
                         }) else {
                             warn!("error starting screencast: requested window is missing");
-                            self.niri.stop_cast(session_id);
+                            self.osvwm.stop_cast(session_id);
                             return;
                         };
 
                         // Use the cached output since it will be present even if the output was
                         // currently disconnected.
-                        let Some(output) = self.niri.mapped_cast_output.get(window) else {
+                        let Some(output) = self.osvwm.mapped_cast_output.get(window) else {
                             warn!("error starting screencast: requested window is missing");
-                            self.niri.stop_cast(session_id);
+                            self.osvwm.stop_cast(session_id);
                             return;
                         };
 
@@ -2235,7 +2235,7 @@ impl State {
                     .unwrap_or_default();
 
                 {
-                    let config = self.niri.config.borrow();
+                    let config = self.osvwm.config.borrow();
                     if config.debug.force_pipewire_invalid_modifier {
                         render_formats = render_formats
                             .into_iter()
@@ -2259,15 +2259,15 @@ impl State {
                 );
                 match res {
                     Ok(cast) => {
-                        self.niri.casts.push(cast);
+                        self.osvwm.casts.push(cast);
                     }
                     Err(err) => {
                         warn!("error starting screencast: {err:?}");
-                        self.niri.stop_cast(session_id);
+                        self.osvwm.stop_cast(session_id);
                     }
                 }
             }
-            ScreenCastToNiri::StopCast { session_id } => self.niri.stop_cast(session_id),
+            ScreenCastToOsvwm::StopCast { session_id } => self.osvwm.stop_cast(session_id),
         }
     }
 
@@ -2278,10 +2278,10 @@ impl State {
         msg: ScreenshotToNiri,
     ) {
         match msg {
-            ScreenshotToNiri::TakeScreenshot { include_cursor } => {
+            ScreenshotToOsvwm::TakeScreenshot { include_cursor } => {
                 self.handle_take_screenshot(to_screenshot, include_cursor);
             }
-            ScreenshotToNiri::PickColor(tx) => {
+            ScreenshotToOsvwm::PickColor(tx) => {
                 self.handle_pick_color(tx);
             }
         }
@@ -2336,21 +2336,21 @@ impl State {
     ) {
         use crate::utils::with_toplevel_role;
 
-        let IntrospectToNiri::GetWindows = msg;
+        let IntrospectToOsvwm::GetWindows = msg;
         let _span = tracy_client::span!("GetWindows");
 
         let mut windows = HashMap::new();
 
         #[cfg(feature = "xdp-gnome-screencast")]
         windows.insert(
-            self.niri.dynamic_cast_id_for_portal.get(),
+            self.osvwm.dynamic_cast_id_for_portal.get(),
             gnome_shell_introspect::WindowProperties {
                 title: String::from("niri Dynamic Cast Target"),
                 app_id: String::from("rs.bxt.niri.desktop"),
             },
         );
 
-        self.niri.layout.with_windows(|mapped, _, _, _| {
+        self.osvwm.layout.with_windows(|mapped, _, _, _| {
             let id = mapped.id().get();
             let props = with_toplevel_role(mapped.toplevel(), |role| {
                 gnome_shell_introspect::WindowProperties {
@@ -2377,7 +2377,7 @@ impl State {
 
     #[cfg(feature = "dbus")]
     pub fn on_login1_msg(&mut self, msg: Login1ToNiri) {
-        let Login1ToNiri::LidClosedChanged(is_closed) = msg;
+        let Login1ToOsvwm::LidClosedChanged(is_closed) = msg;
 
         trace!("login1 lid {}", if is_closed { "closed" } else { "opened" });
         self.set_lid_closed(is_closed);
@@ -2385,13 +2385,13 @@ impl State {
 
     #[cfg(feature = "dbus")]
     pub fn on_locale1_msg(&mut self, msg: Locale1ToNiri) {
-        let Locale1ToNiri::XkbChanged(xkb) = msg;
+        let Locale1ToOsvwm::XkbChanged(xkb) = msg;
 
         trace!("locale1 xkb settings changed: {xkb:?}");
-        let xkb = self.niri.xkb_from_locale1.insert(xkb);
+        let xkb = self.osvwm.xkb_from_locale1.insert(xkb);
 
         {
-            let config = self.niri.config.borrow();
+            let config = self.osvwm.config.borrow();
             if config.input.keyboard.xkb != Xkb::default() {
                 trace!("ignoring locale1 xkb change because niri config has xkb settings");
                 return;
@@ -2404,7 +2404,7 @@ impl State {
     }
 }
 
-impl Niri {
+impl Osvwm {
     pub fn new(
         config: Rc<RefCell<Config>>,
         event_loop: LoopHandle<'static, State>,
@@ -2414,7 +2414,7 @@ impl Niri {
         create_wayland_socket: bool,
         is_session_instance: bool,
     ) -> Self {
-        let _span = tracy_client::span!("Niri::new");
+        let _span = tracy_client::span!("Osvwm::new");
 
         let (executor, scheduler) = calloop::futures::executor().unwrap();
         event_loop.insert_source(executor, |_, _, _| ()).unwrap();
@@ -2536,7 +2536,7 @@ impl Niri {
             .insert_source(
                 Timer::from_duration(XDG_ACTIVATION_TOKEN_TIMEOUT),
                 |_, _, state| {
-                    state.niri.activation_state.retain_tokens(|_, token_data| {
+                    state.osvwm.activation_state.retain_tokens(|_, token_data| {
                         token_data.timestamp.elapsed() < XDG_ACTIVATION_TOKEN_TIMEOUT
                     });
                     TimeoutAction::ToDuration(XDG_ACTIVATION_TOKEN_TIMEOUT)
@@ -2606,7 +2606,7 @@ impl Niri {
             .insert_source(
                 Timer::from_duration(Duration::from_secs(1)),
                 |_, _, state| {
-                    state.niri.send_frame_callbacks_on_fallback_timer();
+                    state.osvwm.send_frame_callbacks_on_fallback_timer();
                     TimeoutAction::ToDuration(Duration::from_secs(1))
                 },
             )
@@ -2617,7 +2617,7 @@ impl Niri {
             let socket_name = socket_source.socket_name().to_os_string();
             event_loop
                 .insert_source(socket_source, move |client, _, state| {
-                    state.niri.insert_client(NewClient {
+                    state.osvwm.insert_client(NewClient {
                         client,
                         restricted: false,
                         credentials_unknown: false,
@@ -2636,15 +2636,15 @@ impl Niri {
         };
 
         #[cfg(feature = "xdp-gnome-screencast")]
-        let pw_to_niri = {
-            let (pw_to_niri, from_pipewire) = calloop::channel::channel();
+        let pw_to_osvwm = {
+            let (pw_to_osvwm, from_pipewire) = calloop::channel::channel();
             event_loop
                 .insert_source(from_pipewire, move |event, _, state| match event {
                     calloop::channel::Event::Msg(msg) => state.on_pw_msg(msg),
                     calloop::channel::Event::Closed => (),
                 })
                 .unwrap();
-            pw_to_niri
+            pw_to_osvwm
         };
 
         let display_source = Generic::new(display, Interest::READ, Mode::Level);
@@ -2663,9 +2663,9 @@ impl Niri {
                 Timer::from_duration(Duration::from_secs(60)),
                 |_, _, state| {
                     let _span = tracy_client::span!("startup timeout");
-                    state.niri.is_at_startup = false;
-                    state.niri.recompute_window_rules();
-                    state.niri.recompute_layer_rules();
+                    state.osvwm.is_at_startup = false;
+                    state.osvwm.recompute_window_rules();
+                    state.osvwm.recompute_layer_rules();
                     TimeoutAction::Drop
                 },
             )
@@ -2815,7 +2815,7 @@ impl Niri {
             pipewire: None,
             casts: vec![],
             #[cfg(feature = "xdp-gnome-screencast")]
-            pw_to_niri,
+            pw_to_osvwm,
 
             #[cfg(feature = "xdp-gnome-screencast")]
             mapped_cast_output: HashMap::new(),
@@ -2861,7 +2861,7 @@ impl Niri {
             "/org/freedesktop/login1",
             Some("org.freedesktop.login1.Manager"),
             "Inhibit",
-            &("handle-power-key", "niri", "Power key handling", "block"),
+            &("handle-power-key", "osvwm", "Power key handling", "block"),
         )?;
 
         let fd: zbus::zvariant::OwnedFd = message.body().deserialize()?;
@@ -2878,14 +2878,14 @@ impl Niri {
 
     /// Repositions all outputs, optionally adding a new output.
     pub fn reposition_outputs(&mut self, new_output: Option<&Output>) {
-        let _span = tracy_client::span!("Niri::reposition_outputs");
+        let _span = tracy_client::span!("Osvwm::reposition_outputs");
 
         #[derive(Debug)]
         struct Data {
             output: Output,
             name: OutputName,
             position: Option<Point<i32, Logical>>,
-            config: Option<niri_config::Position>,
+            config: Option<osvwm_config::Position>,
         }
 
         let config = self.config.borrow();
@@ -3849,7 +3849,7 @@ impl Niri {
     }
 
     pub fn redraw_queued_outputs(&mut self, backend: &mut Backend) {
-        let _span = tracy_client::span!("Niri::redraw_queued_outputs");
+        let _span = tracy_client::span!("Osvwm::redraw_queued_outputs");
 
         while let Some((output, _)) = self.output_state.iter().find(|(_, state)| {
             matches!(
@@ -3873,7 +3873,7 @@ impl Niri {
             return;
         }
 
-        let _span = tracy_client::span!("Niri::pointer_element");
+        let _span = tracy_client::span!("Osvwm::pointer_element");
         let output_scale = output.current_scale();
         let output_pos = self.global_space.output_geometry(output).unwrap().loc;
 
@@ -3953,7 +3953,7 @@ impl Niri {
             return;
         }
 
-        let _span = tracy_client::span!("Niri::refresh_pointer_outputs");
+        let _span = tracy_client::span!("Osvwm::refresh_pointer_outputs");
 
         // Check whether we need to draw the tablet cursor or the regular cursor.
         let pointer_pos = self
@@ -4115,7 +4115,7 @@ impl Niri {
     }
 
     pub fn refresh_idle_inhibit(&mut self) {
-        let _span = tracy_client::span!("Niri::refresh_idle_inhibit");
+        let _span = tracy_client::span!("Osvwm::refresh_idle_inhibit");
 
         self.idle_inhibiting_surfaces.retain(|s| s.is_alive());
 
@@ -4129,7 +4129,7 @@ impl Niri {
     }
 
     pub fn refresh_window_states(&mut self) {
-        let _span = tracy_client::span!("Niri::refresh_window_states");
+        let _span = tracy_client::span!("Osvwm::refresh_window_states");
 
         let config = self.config.borrow();
         self.layout.with_windows_mut(|mapped, _output| {
@@ -4139,7 +4139,7 @@ impl Niri {
     }
 
     pub fn refresh_window_rules(&mut self) {
-        let _span = tracy_client::span!("Niri::refresh_window_rules");
+        let _span = tracy_client::span!("Osvwm::refresh_window_rules");
 
         let config = self.config.borrow();
         let window_rules = &config.window_rules;
@@ -4234,7 +4234,7 @@ impl Niri {
     }
 
     pub fn advance_animations(&mut self) {
-        let _span = tracy_client::span!("Niri::advance_animations");
+        let _span = tracy_client::span!("Osvwm::advance_animations");
 
         self.layout.advance_animations();
         self.config_error_notification.advance_animations();
@@ -4293,7 +4293,7 @@ impl Niri {
         include_pointer: bool,
         mut target: RenderTarget,
     ) -> Vec<OutputRenderElements<R>> {
-        let _span = tracy_client::span!("Niri::render");
+        let _span = tracy_client::span!("Osvwm::render");
 
         if target == RenderTarget::Output {
             if let Some(preview) = self.config.borrow().debug.preview_render {
@@ -4574,7 +4574,7 @@ impl Niri {
     }
 
     fn redraw(&mut self, backend: &mut Backend, output: &Output) {
-        let _span = tracy_client::span!("Niri::redraw");
+        let _span = tracy_client::span!("Osvwm::redraw");
 
         // Verify our invariant.
         let state = self.output_state.get_mut(output).unwrap();
@@ -4703,7 +4703,7 @@ impl Niri {
     }
 
     pub fn refresh_on_demand_vrr(&mut self, backend: &mut Backend, output: &Output) {
-        let _span = tracy_client::span!("Niri::refresh_on_demand_vrr");
+        let _span = tracy_client::span!("Osvwm::refresh_on_demand_vrr");
 
         let name = output.user_data().get::<OutputName>().unwrap();
         let on_demand = self
@@ -4872,7 +4872,7 @@ impl Niri {
         feedback: &SurfaceDmabufFeedback,
         render_element_states: &RenderElementStates,
     ) {
-        let _span = tracy_client::span!("Niri::send_dmabuf_feedbacks");
+        let _span = tracy_client::span!("Osvwm::send_dmabuf_feedbacks");
 
         // We can unconditionally send the current output's feedback to regular and layer-shell
         // surfaces, as they can only be displayed on a single output at a time. Even if a surface
@@ -4957,7 +4957,7 @@ impl Niri {
     }
 
     pub fn send_frame_callbacks(&mut self, output: &Output) {
-        let _span = tracy_client::span!("Niri::send_frame_callbacks");
+        let _span = tracy_client::span!("Osvwm::send_frame_callbacks");
 
         let state = self.output_state.get(output).unwrap();
         let sequence = state.frame_callback_sequence;
@@ -5047,7 +5047,7 @@ impl Niri {
     }
 
     pub fn send_frame_callbacks_on_fallback_timer(&mut self) {
-        let _span = tracy_client::span!("Niri::send_frame_callbacks_on_fallback_timer");
+        let _span = tracy_client::span!("Osvwm::send_frame_callbacks_on_fallback_timer");
 
         // Make up a bogus output; we don't care about it here anyway, just the throttling timer.
         let output = Output::new(
@@ -5185,7 +5185,7 @@ impl Niri {
         output: &Output,
         target_presentation_time: Duration,
     ) {
-        let _span = tracy_client::span!("Niri::render_for_screen_cast");
+        let _span = tracy_client::span!("Osvwm::render_for_screen_cast");
 
         let target = CastTarget::Output(output.downgrade());
 
@@ -5244,7 +5244,7 @@ impl Niri {
         output: &Output,
         target_presentation_time: Duration,
     ) {
-        let _span = tracy_client::span!("Niri::render_windows_for_screen_cast");
+        let _span = tracy_client::span!("Osvwm::render_windows_for_screen_cast");
 
         let scale = Scale::from(output.current_scale().fractional_scale());
 
@@ -5303,7 +5303,7 @@ impl Niri {
         renderer: &mut GlesRenderer,
         output: &Output,
     ) {
-        let _span = tracy_client::span!("Niri::render_for_screencopy_with_damage");
+        let _span = tracy_client::span!("Osvwm::render_for_screencopy_with_damage");
 
         let mut screencopy_state = mem::take(&mut self.screencopy_state);
         let elements = OnceCell::new();
@@ -5366,7 +5366,7 @@ impl Niri {
         manager: &ZwlrScreencopyManagerV1,
         screencopy: Screencopy,
     ) -> anyhow::Result<()> {
-        let _span = tracy_client::span!("Niri::render_for_screencopy");
+        let _span = tracy_client::span!("Osvwm::render_for_screencopy");
 
         let output = screencopy.output();
         ensure!(
@@ -5472,7 +5472,7 @@ impl Niri {
 
     #[cfg(feature = "xdp-gnome-screencast")]
     fn stop_cast(&mut self, session_id: usize) {
-        let _span = tracy_client::span!("Niri::stop_cast");
+        let _span = tracy_client::span!("Osvwm::stop_cast");
 
         debug!(session_id, "StopCast");
 
@@ -5508,7 +5508,7 @@ impl Niri {
 
     #[cfg(feature = "xdp-gnome-screencast")]
     pub fn stop_casts_for_target(&mut self, target: CastTarget) {
-        let _span = tracy_client::span!("Niri::stop_casts_for_target");
+        let _span = tracy_client::span!("Osvwm::stop_casts_for_target");
 
         // This is O(N^2) but it shouldn't be a problem I think.
         let mut saw_dynamic = false;
@@ -5538,7 +5538,7 @@ impl Niri {
     }
 
     pub fn remove_screencopy_output(&mut self, output: &Output) {
-        let _span = tracy_client::span!("Niri::remove_screencopy_output");
+        let _span = tracy_client::span!("Osvwm::remove_screencopy_output");
         for queue in self.screencopy_state.queues_mut() {
             queue.remove_output(output);
         }
@@ -5633,7 +5633,7 @@ impl Niri {
         include_pointer: bool,
         path: Option<String>,
     ) -> anyhow::Result<()> {
-        let _span = tracy_client::span!("Niri::screenshot");
+        let _span = tracy_client::span!("Osvwm::screenshot");
 
         self.update_render_elements(Some(output));
 
@@ -5670,7 +5670,7 @@ impl Niri {
         write_to_disk: bool,
         path: Option<String>,
     ) -> anyhow::Result<()> {
-        let _span = tracy_client::span!("Niri::screenshot_window");
+        let _span = tracy_client::span!("Osvwm::screenshot_window");
 
         let scale = Scale::from(output.current_scale().fractional_scale());
         let alpha =
@@ -5735,8 +5735,8 @@ impl Niri {
             .insert_source(rx, move |event, _, state| match event {
                 calloop::channel::Event::Msg(buf) => {
                     set_data_device_selection(
-                        &state.niri.display_handle,
-                        &state.niri.seat,
+                        &state.osvwm.display_handle,
+                        &state.osvwm.seat,
                         vec![String::from("image/png")],
                         buf.clone(),
                     );
@@ -5820,7 +5820,7 @@ impl Niri {
         include_pointer: bool,
         on_done: impl FnOnce(PathBuf) + Send + 'static,
     ) -> anyhow::Result<()> {
-        let _span = tracy_client::span!("Niri::screenshot_all_outputs");
+        let _span = tracy_client::span!("Osvwm::screenshot_all_outputs");
 
         self.update_render_elements(None);
 
@@ -5943,7 +5943,7 @@ impl Niri {
                 .event_loop
                 .insert_source(timer, |_, _, state| {
                     trace!("lock deadline expired, continuing");
-                    state.niri.continue_to_locking();
+                    state.osvwm.continue_to_locking();
                     TimeoutAction::Drop
                 })
                 .unwrap();
@@ -6202,7 +6202,7 @@ impl Niri {
 
     #[cfg(feature = "dbus")]
     pub fn on_ipc_outputs_changed(&self) {
-        let _span = tracy_client::span!("Niri::on_ipc_outputs_changed");
+        let _span = tracy_client::span!("Osvwm::on_ipc_outputs_changed");
 
         let Some(dbus) = &self.dbus else { return };
         let Some(conn_display_config) = dbus.conn_display_config.clone() else {
@@ -6298,7 +6298,7 @@ impl Niri {
     }
 
     pub fn do_screen_transition(&mut self, renderer: &mut GlesRenderer, delay_ms: Option<u16>) {
-        let _span = tracy_client::span!("Niri::do_screen_transition");
+        let _span = tracy_client::span!("Osvwm::do_screen_transition");
 
         self.update_render_elements(None);
 
@@ -6373,7 +6373,7 @@ impl Niri {
     }
 
     pub fn recompute_window_rules(&mut self) {
-        let _span = tracy_client::span!("Niri::recompute_window_rules");
+        let _span = tracy_client::span!("Osvwm::recompute_window_rules");
 
         let changed = {
             let window_rules = &self.config.borrow().window_rules;
@@ -6409,7 +6409,7 @@ impl Niri {
     }
 
     pub fn recompute_layer_rules(&mut self) {
-        let _span = tracy_client::span!("Niri::recompute_layer_rules");
+        let _span = tracy_client::span!("Osvwm::recompute_layer_rules");
 
         let mut changed = false;
         {
@@ -6435,7 +6435,7 @@ impl Niri {
             return;
         }
 
-        let _span = tracy_client::span!("Niri::reset_pointer_inactivity_timer");
+        let _span = tracy_client::span!("Osvwm::reset_pointer_inactivity_timer");
 
         if let Some(token) = self.pointer_inactivity_timer.take() {
             self.event_loop.remove(token);
@@ -6450,13 +6450,13 @@ impl Niri {
         let token = self
             .event_loop
             .insert_source(timer, move |_, _, state| {
-                state.niri.pointer_inactivity_timer = None;
+                state.osvwm.pointer_inactivity_timer = None;
 
                 // If the pointer is already invisible, don't reset it back to Hidden causing one
                 // frame of hover.
-                if state.niri.pointer_visibility.is_visible() {
-                    state.niri.pointer_visibility = PointerVisibility::Hidden;
-                    state.niri.queue_redraw_all();
+                if state.osvwm.pointer_visibility.is_visible() {
+                    state.osvwm.pointer_visibility = PointerVisibility::Hidden;
+                    state.osvwm.queue_redraw_all();
                 }
 
                 TimeoutAction::Drop
@@ -6472,7 +6472,7 @@ impl Niri {
             return;
         }
 
-        let _span = tracy_client::span!("Niri::notify_activity");
+        let _span = tracy_client::span!("Osvwm::notify_activity");
 
         self.idle_notifier_state.notify_activity(&self.seat);
 
@@ -6553,14 +6553,14 @@ fn scale_relocate_crop<E: Element>(
     CropRenderElement::from_element(elem, output_scale, ws_geo)
 }
 
-niri_render_elements! {
+osvwm_render_elements! {
     PointerRenderElements<R> => {
         Wayland = WaylandSurfaceRenderElement<R>,
         NamedPointer = MemoryRenderBufferRenderElement<R>,
     }
 }
 
-niri_render_elements! {
+osvwm_render_elements! {
     OutputRenderElements<R> => {
         Monitor = MonitorRenderElement<R>,
         RescaledTile = RescaleRenderElement<TileRenderElement<R>>,

@@ -6,10 +6,10 @@ use std::sync::mpsc;
 use std::time::{Duration, SystemTime};
 use std::{io, thread};
 
-use niri_config::{Config, ConfigParseResult, ConfigPath};
+use osvwm_config::{Config, ConfigParseResult, ConfigPath};
 use smithay::reexports::calloop::channel::SyncSender;
 
-use crate::niri::State;
+use crate::osvwm::State;
 
 const POLLING_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -204,7 +204,7 @@ pub fn setup(state: &mut State, config_path: &ConfigPath, includes: Vec<PathBuf>
         .unwrap();
 
     let watcher = Watcher::new(config_path.clone(), includes, process, tx);
-    state.niri.config_file_watcher = Some(watcher);
+    state.osvwm.config_file_watcher = Some(watcher);
 }
 
 #[cfg(test)]
@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn create_file() -> Result {
         TestPath::Explicit("niri/config.kdl")
-            .setup(|sh| sh.create_dir("niri"))
+            .setup(|sh| sh.create_dir("osvwm"))
             .assert_initial_not_exists()
             .run(|sh, test| {
                 sh.write_file("niri/config.kdl", "a")?;
@@ -483,7 +483,7 @@ mod tests {
             .setup(|sh| sh.write_file("niri/config.kdl", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.remove_path("niri")?;
+                sh.remove_path("osvwm")?;
                 test.assert_unchanged();
 
                 Ok(())
@@ -513,7 +513,7 @@ mod tests {
             })
             .assert_initial("a")
             .run(|sh, test| {
-                sh.remove_path("niri")?;
+                sh.remove_path("osvwm")?;
                 sh.write_file("niri/config.kdl", "b")?;
                 test.assert_changed_to("b");
 
@@ -528,7 +528,7 @@ mod tests {
             .assert_initial("a")
             .run(|sh, test| {
                 sh.write_file("niri2/config.kdl", "b")?;
-                sh.remove_path("niri")?;
+                sh.remove_path("osvwm")?;
                 cmd!(sh, "mv niri2 niri").run()?;
                 test.assert_changed_to("b");
 
@@ -546,7 +546,7 @@ mod tests {
             .assert_initial("a")
             .run(|sh, test| {
                 sh.write_file("niri3/config.kdl", "b")?;
-                sh.remove_path("niri")?;
+                sh.remove_path("osvwm")?;
                 cmd!(sh, "ln -s niri3 niri").run()?;
                 test.assert_changed_to("b");
 
@@ -637,7 +637,7 @@ mod tests {
     fn swap_just_link() -> Result {
         TestPath::Explicit("niri/config.kdl")
             .setup_any(|sh| {
-                let dir = sh.current_dir().join("niri");
+                let dir = sh.current_dir().join("osvwm");
 
                 sh.create_dir(&dir)?;
 

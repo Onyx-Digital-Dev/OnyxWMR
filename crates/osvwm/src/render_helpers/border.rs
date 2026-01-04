@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use glam::{Mat3, Vec2};
-use niri_config::{
+use osvwm_config::{
     Color, CornerRadius, GradientColorSpace, GradientInterpolation, HueInterpolation,
 };
 use smithay::backend::renderer::element::{Element, Id, Kind, RenderElement, UnderlyingStorage};
@@ -220,7 +220,7 @@ impl BorderRenderElement {
         self
     }
 
-    pub fn has_shader(renderer: &mut impl NiriRenderer) -> bool {
+    pub fn has_shader(renderer: &mut impl OsvwmRenderer) -> bool {
         Shaders::get(renderer)
             .program(ProgramType::Border)
             .is_some()

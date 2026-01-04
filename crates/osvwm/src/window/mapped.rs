@@ -1,7 +1,7 @@
 use std::cell::{Cell, Ref, RefCell};
 use std::time::Duration;
 
-use niri_config::{Color, CornerRadius, GradientInterpolation, WindowRule};
+use osvwm_config::{Color, CornerRadius, GradientInterpolation, WindowRule};
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::GlesRenderer;
@@ -27,7 +27,7 @@ use crate::layout::{
     ConfigureIntent, InteractiveResizeData, LayoutElement, LayoutElementRenderElement,
     LayoutElementRenderSnapshot, SizingMode,
 };
-use crate::niri_render_elements;
+use crate::osvwm_render_elements;
 use crate::render_helpers::border::BorderRenderElement;
 use crate::render_helpers::offscreen::OffscreenData;
 use crate::render_helpers::renderer::NiriRenderer;
@@ -190,7 +190,7 @@ pub struct Mapped {
     focus_timestamp: Option<Duration>,
 }
 
-niri_render_elements! {
+osvwm_render_elements! {
     WindowCastRenderElements<R> => {
         Layout = LayoutElementRenderElement<R>,
         // Blocked-out window with rounded corners.

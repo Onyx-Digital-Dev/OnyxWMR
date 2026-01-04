@@ -11,7 +11,7 @@ use smithay::output::Output;
 use smithay::utils::{Logical, Point, SERIAL_COUNTER};
 
 use crate::layout::workspace::WorkspaceId;
-use crate::niri::State;
+use crate::osvwm::State;
 use crate::utils::get_monotonic_time;
 
 pub struct SpatialMovementGrab {
@@ -126,7 +126,7 @@ impl SpatialMovementGrab {
     }
 
     fn on_ungrab(&mut self, state: &mut State) {
-        let layout = &mut state.niri.layout;
+        let layout = &mut state.osvwm.layout;
         let res = match self.gesture {
             GestureState::Recognizing => None,
             GestureState::ViewOffset => layout.view_offset_gesture_end(Some(false)),
@@ -134,7 +134,7 @@ impl SpatialMovementGrab {
         };
 
         if let Some(output) = res {
-            state.niri.queue_redraw(&output);
+            state.osvwm.queue_redraw(&output);
         }
 
         state

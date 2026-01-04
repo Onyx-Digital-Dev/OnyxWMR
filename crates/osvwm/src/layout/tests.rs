@@ -1,8 +1,8 @@
 use std::cell::{Cell, OnceCell, RefCell};
 
-use niri_config::utils::{Flag, MergeWith as _};
-use niri_config::workspace::WorkspaceName;
-use niri_config::{
+use osvwm_config::utils::{Flag, MergeWith as _};
+use osvwm_config::workspace::WorkspaceName;
+use osvwm_config::{
     CenterFocusedColumn, FloatOrInt, OutputName, Struts, TabIndicatorLength, TabIndicatorPosition,
     WorkspaceReference,
 };
@@ -407,7 +407,7 @@ enum Op {
         #[proptest(strategy = "arbitrary_scale()")]
         scale: f64,
         #[proptest(strategy = "prop::option::of(arbitrary_layout_part().prop_map(Box::new))")]
-        layout_config: Option<Box<niri_config::LayoutPart>>,
+        layout_config: Option<Box<osvwm_config::LayoutPart>>,
     },
     RemoveOutput(#[proptest(strategy = "1..=5usize")] usize),
     FocusOutput(#[proptest(strategy = "1..=5usize")] usize),
@@ -415,7 +415,7 @@ enum Op {
         #[proptest(strategy = "1..=5usize")]
         id: usize,
         #[proptest(strategy = "prop::option::of(arbitrary_layout_part().prop_map(Box::new))")]
-        layout_config: Option<Box<niri_config::LayoutPart>>,
+        layout_config: Option<Box<osvwm_config::LayoutPart>>,
     },
     AddNamedWorkspace {
         #[proptest(strategy = "1..=5usize")]
@@ -423,7 +423,7 @@ enum Op {
         #[proptest(strategy = "prop::option::of(1..=5usize)")]
         output_name: Option<usize>,
         #[proptest(strategy = "prop::option::of(arbitrary_layout_part().prop_map(Box::new))")]
-        layout_config: Option<Box<niri_config::LayoutPart>>,
+        layout_config: Option<Box<osvwm_config::LayoutPart>>,
     },
     UnnameWorkspace {
         #[proptest(strategy = "1..=5usize")]
@@ -433,7 +433,7 @@ enum Op {
         #[proptest(strategy = "1..=5usize")]
         ws_name: usize,
         #[proptest(strategy = "prop::option::of(arbitrary_layout_part().prop_map(Box::new))")]
-        layout_config: Option<Box<niri_config::LayoutPart>>,
+        layout_config: Option<Box<osvwm_config::LayoutPart>>,
     },
     AddWindow {
         params: TestWindowParams,
@@ -745,7 +745,7 @@ enum Op {
     ToggleOverview,
     UpdateConfig {
         #[proptest(strategy = "arbitrary_layout_part().prop_map(Box::new)")]
-        layout_config: Box<niri_config::LayoutPart>,
+        layout_config: Box<osvwm_config::LayoutPart>,
     },
 }
 
@@ -854,7 +854,7 @@ impl Op {
                 layout.ensure_named_workspace(&WorkspaceConfig {
                     name: WorkspaceName(format!("ws{ws_name}")),
                     open_on_output: output_name.map(|name| format!("output{name}")),
-                    layout: layout_config.map(|x| niri_config::WorkspaceLayoutPart(*x)),
+                    layout: layout_config.map(|x| osvwm_config::WorkspaceLayoutPart(*x)),
                 });
             }
             Op::UnnameWorkspace { ws_name } => {
@@ -1613,7 +1613,7 @@ impl Op {
             }
             Op::UpdateConfig { layout_config } => {
                 let options = Options {
-                    layout: niri_config::Layout::from_part(&layout_config),
+                    layout: osvwm_config::Layout::from_part(&layout_config),
                     ..Default::default()
                 };
 
@@ -2327,7 +2327,7 @@ fn open_right_of_on_different_workspace_ewaf() {
     ];
 
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2511,8 +2511,8 @@ fn fixed_height_takes_max_non_auto_into_account() {
     ];
 
     let options = Options {
-        layout: niri_config::Layout {
-            border: niri_config::Border {
+        layout: osvwm_config::Layout {
+            border: osvwm_config::Border {
                 off: false,
                 width: 4.,
                 ..Default::default()
@@ -2598,7 +2598,7 @@ fn interactive_move_onto_empty_output_ewaf() {
     ];
 
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2662,7 +2662,7 @@ fn interactive_move_onto_first_empty_workspace() {
         Op::InteractiveMoveEnd { window: 1 },
     ];
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2748,7 +2748,7 @@ fn named_workspace_to_output_ewaf() {
         Op::AddOutput(2),
     ];
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2770,7 +2770,7 @@ fn move_window_to_empty_workspace_above_first() {
         Op::MoveWorkspaceDown,
     ];
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2790,7 +2790,7 @@ fn move_window_to_different_output() {
         Op::MoveWorkspaceToOutput(2),
     ];
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2809,7 +2809,7 @@ fn close_window_empty_ws_above_first() {
         Op::CloseWindow(1),
     ];
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2829,7 +2829,7 @@ fn add_and_remove_output() {
         Op::RemoveOutput(2),
     ];
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2849,7 +2849,7 @@ fn switch_ewaf_on() {
 
     let mut layout = check_ops(ops);
     layout.update_options(Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2868,7 +2868,7 @@ fn switch_ewaf_off() {
     ];
 
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -2976,8 +2976,8 @@ fn interactive_move_from_workspace_with_layout_config() {
         Op::AddNamedWorkspace {
             ws_name: 1,
             output_name: Some(2),
-            layout_config: Some(Box::new(niri_config::LayoutPart {
-                border: Some(niri_config::BorderRule {
+            layout_config: Some(Box::new(osvwm_config::LayoutPart {
+                border: Some(osvwm_config::BorderRule {
                     on: true,
                     ..Default::default()
                 }),
@@ -3249,7 +3249,7 @@ fn set_first_workspace_name_ewaf() {
     ];
 
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             empty_workspace_above_first: true,
             ..Default::default()
         },
@@ -3343,7 +3343,7 @@ fn preset_column_width_fixed_correct_with_border() {
     ];
 
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             preset_column_widths: vec![PresetSize::Fixed(500)],
             ..Default::default()
         },
@@ -3356,9 +3356,9 @@ fn preset_column_width_fixed_correct_with_border() {
 
     // Add border.
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             preset_column_widths: vec![PresetSize::Fixed(500)],
-            border: niri_config::Border {
+            border: osvwm_config::Border {
                 off: false,
                 width: 5.,
                 ..Default::default()
@@ -3395,7 +3395,7 @@ fn preset_column_width_reset_after_set_width() {
     ];
 
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             preset_column_widths: vec![PresetSize::Fixed(500), PresetSize::Fixed(1000)],
             ..Default::default()
         },
@@ -3631,7 +3631,7 @@ fn tabs_with_different_border() {
         Op::AddWindow {
             params: TestWindowParams {
                 rules: Some(ResolvedWindowRules {
-                    border: niri_config::BorderRule {
+                    border: osvwm_config::BorderRule {
                         on: true,
                         ..Default::default()
                     },
@@ -3649,7 +3649,7 @@ fn tabs_with_different_border() {
     ];
 
     let options = Options {
-        layout: niri_config::Layout {
+        layout: osvwm_config::Layout {
             struts: Struts {
                 left: FloatOrInt(0.),
                 right: FloatOrInt(0.),
@@ -3773,8 +3773,8 @@ prop_compose! {
     fn arbitrary_focus_ring()(
         off in any::<bool>(),
         width in prop::option::of(arbitrary_spacing().prop_map(FloatOrInt)),
-    ) -> niri_config::BorderRule {
-        niri_config::BorderRule {
+    ) -> osvwm_config::BorderRule {
+        osvwm_config::BorderRule {
             off,
             on: !off,
             width,
@@ -3787,8 +3787,8 @@ prop_compose! {
     fn arbitrary_border()(
         off in any::<bool>(),
         width in prop::option::of(arbitrary_spacing().prop_map(FloatOrInt)),
-    ) -> niri_config::BorderRule {
-        niri_config::BorderRule {
+    ) -> osvwm_config::BorderRule {
+        osvwm_config::BorderRule {
             off,
             on: !off,
             width,
@@ -3801,8 +3801,8 @@ prop_compose! {
     fn arbitrary_shadow()(
         off in any::<bool>(),
         softness in prop::option::of(arbitrary_spacing().prop_map(FloatOrInt)),
-    ) -> niri_config::ShadowRule {
-        niri_config::ShadowRule {
+    ) -> osvwm_config::ShadowRule {
+        osvwm_config::ShadowRule {
             off,
             on: !off,
             softness,
@@ -3821,8 +3821,8 @@ prop_compose! {
         length in prop::option::of((0f64..2f64)
             .prop_map(|x| TabIndicatorLength { total_proportion: Some(x) })),
         position in prop::option::of(arbitrary_tab_indicator_position()),
-    ) -> niri_config::TabIndicatorPart {
-        niri_config::TabIndicatorPart {
+    ) -> osvwm_config::TabIndicatorPart {
+        osvwm_config::TabIndicatorPart {
             off,
             on: !off,
             hide_when_single_tab,
@@ -3847,8 +3847,8 @@ prop_compose! {
         center_focused_column in prop::option::of(arbitrary_center_focused_column()),
         always_center_single_column in prop::option::of(any::<bool>().prop_map(Flag)),
         empty_workspace_above_first in prop::option::of(any::<bool>().prop_map(Flag)),
-    ) -> niri_config::LayoutPart {
-        niri_config::LayoutPart {
+    ) -> osvwm_config::LayoutPart {
+        osvwm_config::LayoutPart {
             gaps,
             struts,
             center_focused_column,
@@ -3881,7 +3881,7 @@ proptest! {
     ) {
         // eprintln!("{ops:?}");
         let options = Options {
-            layout: niri_config::Layout::from_part(&layout_config),
+            layout: osvwm_config::Layout::from_part(&layout_config),
             ..Default::default()
         };
 

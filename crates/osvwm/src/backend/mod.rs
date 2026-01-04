@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use niri_config::{Config, ModKey};
+use osvwm_config::{Config, ModKey};
 use smithay::backend::allocator::dmabuf::Dmabuf;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::output::Output;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 
-use crate::niri::Niri;
+use crate::osvwm::Niri;
 use crate::utils::id::IdCounter;
 
 pub mod tty;
@@ -37,7 +37,7 @@ pub enum RenderResult {
     Skipped,
 }
 
-pub type IpcOutputMap = HashMap<OutputId, niri_ipc::Output>;
+pub type IpcOutputMap = HashMap<OutputId, osv_ipc::Output>;
 
 static OUTPUT_ID_COUNTER: IdCounter = IdCounter::new();
 
@@ -55,7 +55,7 @@ impl OutputId {
 }
 
 impl Backend {
-    pub fn init(&mut self, niri: &mut Niri) {
+    pub fn init(&mut self, osvwm: &mut Osvwm) {
         let _span = tracy_client::span!("Backend::init");
         match self {
             Backend::Tty(tty) => tty.init(niri),
@@ -85,7 +85,7 @@ impl Backend {
 
     pub fn render(
         &mut self,
-        niri: &mut Niri,
+        osvwm: &mut Osvwm,
         output: &Output,
         target_presentation_time: Duration,
     ) -> RenderResult {
@@ -177,7 +177,7 @@ impl Backend {
         }
     }
 
-    pub fn set_output_on_demand_vrr(&mut self, niri: &mut Niri, output: &Output, enable_vrr: bool) {
+    pub fn set_output_on_demand_vrr(&mut self, osvwm: &mut Osvwm, output: &Output, enable_vrr: bool) {
         match self {
             Backend::Tty(tty) => tty.set_output_on_demand_vrr(niri, output, enable_vrr),
             Backend::Winit(_) => (),
@@ -185,7 +185,7 @@ impl Backend {
         }
     }
 
-    pub fn update_ignored_nodes_config(&mut self, niri: &mut Niri) {
+    pub fn update_ignored_nodes_config(&mut self, osvwm: &mut Osvwm) {
         match self {
             Backend::Tty(tty) => tty.update_ignored_nodes_config(niri),
             Backend::Winit(_) => (),
@@ -193,7 +193,7 @@ impl Backend {
         }
     }
 
-    pub fn on_output_config_changed(&mut self, niri: &mut Niri) {
+    pub fn on_output_config_changed(&mut self, osvwm: &mut Osvwm) {
         match self {
             Backend::Tty(tty) => tty.on_output_config_changed(niri),
             Backend::Winit(_) => (),
