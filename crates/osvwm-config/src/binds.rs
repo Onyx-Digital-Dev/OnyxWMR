@@ -386,7 +386,8 @@ pub enum Action {
     #[knuffel(skip)]
     MruCycleScope,
     /// OSV: Send window to immersion workspace (7 or 8).
-    /// If one is populated, send to the other. If both full, show warning popup.
+    /// Immersion spaces are single-window, fullscreen, no-bar environments.
+    /// If one is occupied, send to the other. If both occupied, show warning popup.
     #[knuffel(skip)]
     SendToImmersion,
     /// OSV: Set the wallpaper image.

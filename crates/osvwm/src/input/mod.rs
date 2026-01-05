@@ -2378,7 +2378,8 @@ impl State {
                 }
             }
             Action::SendToImmersion => {
-                // OSV: Send focused window to immersion workspace 7 or 8.
+                // OSV: Send focused window to immersion space 7 or 8.
+                // Immersion spaces are single-window, fullscreen, no-bar environments.
                 // Workspace 7 = index 6, Workspace 8 = index 7 (0-indexed)
                 const IMMERSION_WS_7: usize = 6;
                 const IMMERSION_WS_8: usize = 7;
@@ -2388,29 +2389,29 @@ impl State {
                     return;
                 }
 
-                // Check immersion workspace occupancy
-                let mut ws7_has_windows = false;
-                let mut ws8_has_windows = false;
+                // Check immersion space occupancy (each holds max 1 window)
+                let mut ws7_occupied = false;
+                let mut ws8_occupied = false;
 
                 for (_, idx, ws) in self.osvwm.layout.workspaces() {
                     if idx == IMMERSION_WS_7 {
-                        ws7_has_windows = ws.has_windows();
+                        ws7_occupied = ws.has_windows();
                     } else if idx == IMMERSION_WS_8 {
-                        ws8_has_windows = ws.has_windows();
+                        ws8_occupied = ws.has_windows();
                     }
                 }
 
-                // Determine target workspace
-                let target_idx = if !ws7_has_windows {
+                // Determine target immersion space
+                let target_idx = if !ws7_occupied {
                     Some(IMMERSION_WS_7)
-                } else if !ws8_has_windows {
+                } else if !ws8_occupied {
                     Some(IMMERSION_WS_8)
                 } else {
-                    None // Both full
+                    None // Both occupied
                 };
 
                 if let Some(idx) = target_idx {
-                    // Move window to immersion workspace, follow focus
+                    // Move window to immersion space, follow focus
                     self.osvwm
                         .layout
                         .move_to_workspace(None, idx, ActivateWindow::Smart);
@@ -2418,11 +2419,11 @@ impl State {
                     // FIXME: granular
                     self.osvwm.queue_redraw_all();
                 } else {
-                    // Both immersion workspaces are full - show warning
+                    // Both immersion spaces are occupied - show warning
                     // TODO: Show popup warning via osv-notify or similar
                     warn!(
-                        "Cannot send to immersion: both immersion workspaces (7 and 8) are occupied. \
-                         Move an immersion window to a Focus workspace, or close an immersion window."
+                        "Cannot send to immersion: both immersion spaces (7 and 8) are occupied. \
+                         Move a window to a Focus workspace, or close an immersion window."
                     );
                 }
             }

@@ -50,7 +50,8 @@ pub enum Action {
     /// Move window to workspace above (Super+Shift+K)
     MoveWindowToWorkspaceUp,
     /// Send window to immersion workspace 7 or 8 (Super+I)
-    /// If both immersion workspaces have windows, shows a popup warning.
+    /// Immersion spaces are single-window, fullscreen, no-bar environments.
+    /// If both immersion spaces are occupied, shows a popup warning.
     SendToImmersion,
     /// Cycle window size 1u→2u→3u→1u (Super+R)
     CycleWindowSize,
