@@ -1,5 +1,6 @@
 // OSV Shared UI Components
 import { OsvTheme } from "theme.slint";
+import { IconChevronDown } from "icons.slint";
 
 // Toggle Switch Component
 export component OsvToggle {
@@ -189,21 +190,19 @@ export component OsvDropdown {
         HorizontalLayout {
             padding-left: OsvTheme.space-sm;
             padding-right: OsvTheme.space-sm;
-            
+            spacing: OsvTheme.space-sm;
+
             Text {
                 text: current-value;
                 color: OsvTheme.text;
                 font-size: OsvTheme.font-body;
                 vertical-alignment: center;
+                horizontal-stretch: 1;
             }
-            
-            Rectangle { }
-            
-            Text {
-                text: "▼";
-                color: OsvTheme.muted;
-                font-size: 10px;
-                vertical-alignment: center;
+
+            IconChevronDown {
+                size: OsvTheme.icon-sm;
+                icon-color: OsvTheme.muted;
             }
         }
     }

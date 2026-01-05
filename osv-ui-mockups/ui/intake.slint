@@ -2,7 +2,7 @@
 // Centered overlay launcher with search and results
 
 import { OsvTheme } from "theme.slint";
-import { IconSearch, IconX, IconTerminal, IconFolder, IconSettings, IconGlobe } from "icons.slint";
+import { IconSearch, IconX, IconTerminal, IconFolder, IconSettings, IconGlobe, IconImage, IconMonitor, IconCpu, IconGrid } from "icons.slint";
 
 // Application result row
 component AppResult {
@@ -31,27 +31,20 @@ component AppResult {
             padding-right: 12px;
             spacing: 8px;
             
-            // App icon
+            // App icon - supports: terminal, folder, settings, browser, image, monitor, system, default
             Rectangle {
-                width: 16px;
-                height: 16px;
-                
-                if (icon-type == "terminal"): IconTerminal {
-                    size: 16px;
-                    icon-color: selected ? OsvTheme.text : OsvTheme.muted;
-                }
-                if (icon-type == "folder"): IconFolder {
-                    size: 16px;
-                    icon-color: selected ? OsvTheme.text : OsvTheme.muted;
-                }
-                if (icon-type == "settings"): IconSettings {
-                    size: 16px;
-                    icon-color: selected ? OsvTheme.text : OsvTheme.muted;
-                }
-                if (icon-type == "browser"): IconGlobe {
-                    size: 16px;
-                    icon-color: selected ? OsvTheme.text : OsvTheme.muted;
-                }
+                width: OsvTheme.icon-md;
+                height: OsvTheme.icon-md;
+                property <color> ic: selected ? OsvTheme.text : OsvTheme.muted;
+
+                if icon-type == "terminal": IconTerminal { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "folder": IconFolder { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "settings": IconSettings { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "browser": IconGlobe { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "image": IconImage { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "monitor": IconMonitor { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "system": IconCpu { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "default": IconGrid { size: OsvTheme.icon-md; icon-color: ic; }
             }
             
             // App name

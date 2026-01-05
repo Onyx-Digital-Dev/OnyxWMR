@@ -3,7 +3,7 @@
 
 import { OsvTheme } from "theme.slint";
 import { OsvToggle, OsvSlider, OsvCard, OsvProgressBar, OsvDropdown } from "components.slint";
-import { IconGauge, IconMonitor, IconVolume2, IconPower, IconBluetooth, IconPalette, IconInfo, IconCpu, IconHardDrive, IconGlobe, IconActivity, IconArrowUp, IconArrowDown, IconRoute, IconWifi } from "icons.slint";
+import { IconGauge, IconMonitor, IconVolume2, IconSpeaker, IconPower, IconZap, IconBluetooth, IconPalette, IconImage, IconInfo, IconUser, IconCpu, IconHardDrive, IconGlobe, IconActivity, IconArrowUp, IconArrowDown, IconRoute, IconWifi, IconShield, IconSun, IconMoon } from "icons.slint";
 
 // Navigation section item
 component NavItem {
@@ -30,21 +30,24 @@ component NavItem {
         HorizontalLayout {
             padding-left: 12px;
             padding-right: 12px;
-            spacing: 8px;
-            
+            spacing: OsvTheme.space-sm;
+
             // Icon
             Rectangle {
-                width: 16px;
-                height: 16px;
-                
-                if (icon-type == "gauge"): IconGauge { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
-                if (icon-type == "monitor"): IconMonitor { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
-                if (icon-type == "volume"): IconVolume2 { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
-                if (icon-type == "power"): IconPower { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
-                if (icon-type == "bluetooth"): IconBluetooth { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
-                if (icon-type == "palette"): IconPalette { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
-                if (icon-type == "info"): IconInfo { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
-                if (icon-type == "wifi"): IconWifi { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
+                width: OsvTheme.icon-md;
+                height: OsvTheme.icon-md;
+                property <color> ic: active ? OsvTheme.text : OsvTheme.muted;
+
+                if icon-type == "gauge": IconGauge { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "monitor": IconMonitor { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "volume": IconVolume2 { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "power": IconPower { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "bluetooth": IconBluetooth { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "palette": IconPalette { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "info": IconInfo { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "wifi": IconWifi { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "shield": IconShield { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "user": IconUser { size: OsvTheme.icon-md; icon-color: ic; }
             }
             
             // Label
@@ -93,13 +96,14 @@ component TelemetryMetric {
                 height: 32px;
                 background: OsvTheme.dark;
                 border-radius: OsvTheme.radius-sm;
-                
-                if (icon-type == "cpu"): IconCpu { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
-                if (icon-type == "memory"): IconHardDrive { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
-                if (icon-type == "network"): IconGlobe { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
-                if (icon-type == "upload"): IconArrowUp { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
-                if (icon-type == "download"): IconArrowDown { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
-                if (icon-type == "activity"): IconActivity { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
+
+                if icon-type == "cpu": IconCpu { x: 8px; y: 8px; size: OsvTheme.icon-md; icon-color: bar-color; }
+                if icon-type == "memory": IconHardDrive { x: 8px; y: 8px; size: OsvTheme.icon-md; icon-color: bar-color; }
+                if icon-type == "network": IconGlobe { x: 8px; y: 8px; size: OsvTheme.icon-md; icon-color: bar-color; }
+                if icon-type == "upload": IconArrowUp { x: 8px; y: 8px; size: OsvTheme.icon-md; icon-color: bar-color; }
+                if icon-type == "download": IconArrowDown { x: 8px; y: 8px; size: OsvTheme.icon-md; icon-color: bar-color; }
+                if icon-type == "activity": IconActivity { x: 8px; y: 8px; size: OsvTheme.icon-md; icon-color: bar-color; }
+                if icon-type == "disk": IconHardDrive { x: 8px; y: 8px; size: OsvTheme.icon-md; icon-color: bar-color; }
             }
             
             // Content
@@ -169,7 +173,7 @@ component RouteItem {
                 width: 8px;
                 height: 8px;
                 border-radius: 4px;
-                background: status == "running" ? #4ade80 : (status == "idle" ? OsvTheme.muted : #f87171);
+                background: status == "running" ? OsvTheme.success : (status == "idle" ? OsvTheme.muted : OsvTheme.error);
             }
             
             // Name
@@ -343,49 +347,49 @@ export component OsvControl {
                     // Metrics grid
                     HorizontalLayout {
                         spacing: OsvTheme.space-sm;
-                        
+
                         TelemetryMetric {
                             horizontal-stretch: 1;
                             label: "CPU Usage";
                             value: "\{round(cpu-usage * 100)}";
                             unit: "%";
                             bar-value: cpu-usage;
-                            bar-color: cpu-usage > 0.8 ? #f87171 : (cpu-usage > 0.6 ? #fbbf24 : OsvTheme.accent);
+                            bar-color: cpu-usage > 0.8 ? OsvTheme.error : (cpu-usage > 0.6 ? OsvTheme.warning : OsvTheme.accent);
                             icon-type: "cpu";
                         }
-                        
+
                         TelemetryMetric {
                             horizontal-stretch: 1;
                             label: "Memory";
                             value: "\{round(memory-usage * 100)}";
                             unit: "%";
                             bar-value: memory-usage;
-                            bar-color: memory-usage > 0.8 ? #f87171 : (memory-usage > 0.6 ? #fbbf24 : #a78bfa);
+                            bar-color: memory-usage > 0.8 ? OsvTheme.error : (memory-usage > 0.6 ? OsvTheme.warning : OsvTheme.accent);
                             icon-type: "memory";
                         }
-                        
+
                         TelemetryMetric {
                             horizontal-stretch: 1;
                             label: "Disk";
                             value: "\{round(disk-usage * 100)}";
                             unit: "%";
                             bar-value: disk-usage;
-                            bar-color: #4ade80;
-                            icon-type: "activity";
+                            bar-color: OsvTheme.success;
+                            icon-type: "disk";
                         }
                     }
-                    
+
                     // Network throughput
                     HorizontalLayout {
                         spacing: OsvTheme.space-sm;
-                        
+
                         TelemetryMetric {
                             horizontal-stretch: 1;
                             label: "Network Upload";
                             value: network-up;
                             unit: "MB/s";
                             bar-value: 0.3;
-                            bar-color: #22d3ee;
+                            bar-color: OsvTheme.accent;
                             icon-type: "upload";
                         }
                         
@@ -395,7 +399,7 @@ export component OsvControl {
                             value: network-down;
                             unit: "MB/s";
                             bar-value: 0.65;
-                            bar-color: #22d3ee;
+                            bar-color: OsvTheme.accent;
                             icon-type: "download";
                         }
                     }

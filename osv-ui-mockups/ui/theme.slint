@@ -12,26 +12,41 @@ export global OsvTheme {
     out property <color> text: #dcdce4;
     out property <color> bright: #f8f8fc;
     out property <color> accent: #58a6ff;
-    
+
+    // Status colors
+    out property <color> success: #4ade80;
+    out property <color> warning: #fbbf24;
+    out property <color> error: #f87171;
+
     // Spacing rhythm
     out property <length> space-xs: 4px;
     out property <length> space-sm: 8px;
     out property <length> space-md: 16px;
     out property <length> space-lg: 24px;
     out property <length> space-xl: 32px;
-    
+
     // Border radius
     out property <length> radius-sm: 4px;
     out property <length> radius-md: 6px;
     out property <length> radius-lg: 8px;
-    
+
     // Font sizes
     out property <length> font-label: 11px;
     out property <length> font-body: 13px;
     out property <length> font-header: 15px;
-    
+
     // Icon sizes
     out property <length> icon-sm: 12px;
     out property <length> icon-md: 16px;
     out property <length> icon-lg: 20px;
+
+    // Shadow - Bar (subtle, thin element)
+    out property <length> shadow-bar-blur: 3px;
+    out property <length> shadow-bar-offset-y: 1px;
+    out property <float> shadow-bar-opacity: 0.35;
+
+    // Shadow - Panel (floating elements)
+    out property <length> shadow-panel-blur: 8px;
+    out property <length> shadow-panel-offset-y: 4px;
+    out property <float> shadow-panel-opacity: 0.5;
 }

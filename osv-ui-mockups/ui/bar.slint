@@ -2,7 +2,7 @@
 // Top status bar with workspace indicators, title, and system tray
 
 import { OsvTheme } from "theme.slint";
-import { IconWifi, IconBluetooth, IconBattery, IconVolume2 } from "icons.slint";
+import { IconWifi, IconWifiOff, IconBluetooth, IconBluetoothOff, IconBattery, IconBatteryCharging, IconVolume2, IconVolumeX } from "icons.slint";
 
 // Workspace capsule for Focus workspaces (1-6)
 component WorkspaceCapsule {
@@ -152,61 +152,77 @@ export component OsvBar {
             HorizontalLayout {
                 spacing: 8px;
                 vertical-stretch: 0;
-                
+
                 // Network (Wifi)
                 TrayIcon {
-                    IconWifi {
-                        size: 12px;
-                        icon-color: wifi-connected ? OsvTheme.muted : OsvTheme.muted.with-alpha(0.4);
+                    if wifi-connected: IconWifi {
+                        size: OsvTheme.icon-sm;
+                        icon-color: OsvTheme.muted;
+                    }
+                    if !wifi-connected: IconWifiOff {
+                        size: OsvTheme.icon-sm;
+                        icon-color: OsvTheme.muted.with-alpha(0.4);
                     }
                 }
-                
+
                 // Bluetooth
                 TrayIcon {
-                    IconBluetooth {
-                        size: 12px;
-                        icon-color: bluetooth-on ? OsvTheme.muted : OsvTheme.muted.with-alpha(0.4);
+                    if bluetooth-on: IconBluetooth {
+                        size: OsvTheme.icon-sm;
+                        icon-color: OsvTheme.muted;
+                    }
+                    if !bluetooth-on: IconBluetoothOff {
+                        size: OsvTheme.icon-sm;
+                        icon-color: OsvTheme.muted.with-alpha(0.4);
                     }
                 }
-                
+
                 // Battery with percentage
                 HorizontalLayout {
                     spacing: 2px;
-                    
+
                     TrayIcon {
-                        IconBattery {
-                            size: 12px;
-                            icon-color: battery-level < 20 ? #ff6b6b : OsvTheme.muted;
+                        if battery-charging: IconBatteryCharging {
+                            size: OsvTheme.icon-sm;
+                            icon-color: OsvTheme.success;
+                        }
+                        if !battery-charging: IconBattery {
+                            size: OsvTheme.icon-sm;
+                            icon-color: battery-level < 20 ? OsvTheme.error : OsvTheme.muted;
                         }
                     }
                     Text {
                         text: "\{battery-level}%";
-                        color: OsvTheme.muted;
+                        color: battery-level < 20 ? OsvTheme.error : OsvTheme.muted;
                         font-size: 10px;
                         vertical-alignment: center;
                     }
                 }
-                
+
                 // Volume
                 TrayIcon {
-                    IconVolume2 {
-                        size: 12px;
-                        icon-color: volume-level > 0 ? OsvTheme.muted : OsvTheme.muted.with-alpha(0.4);
+                    if volume-level > 0: IconVolume2 {
+                        size: OsvTheme.icon-sm;
+                        icon-color: OsvTheme.muted;
+                    }
+                    if volume-level == 0: IconVolumeX {
+                        size: OsvTheme.icon-sm;
+                        icon-color: OsvTheme.muted.with-alpha(0.4);
                     }
                 }
-                
+
                 // Separator
                 Rectangle {
                     width: 1px;
                     height: 8px;
                     background: OsvTheme.border.with-alpha(0.5);
                 }
-                
+
                 // Clock
                 Text {
                     text: time;
-                    color: OsvTheme.muted;
-                    font-size: 12px;
+                    color: OsvTheme.text;
+                    font-size: OsvTheme.font-body;
                     vertical-alignment: center;
                 }
             }
