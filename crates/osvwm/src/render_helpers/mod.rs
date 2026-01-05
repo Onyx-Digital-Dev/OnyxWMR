@@ -37,6 +37,7 @@ pub mod snapshot;
 pub mod solid_color;
 pub mod surface;
 pub mod texture;
+pub mod wallpaper;
 
 /// What we're rendering for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

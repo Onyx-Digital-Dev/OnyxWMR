@@ -6,6 +6,7 @@ members = [
     "crates/osv-ipc",
     "crates/osv-bar",
     "crates/osv-intake",
+    "crates/osv-control",
     "crates/osv-msg",
 ]
 

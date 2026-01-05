@@ -4004,6 +4004,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "osv-control"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "osv-ipc",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "osv-intake"
 version = "0.1.0"
 dependencies = [
@@ -4064,6 +4077,7 @@ dependencies = [
  "futures-util",
  "git-version",
  "glam",
+ "image",
  "input",
  "insta",
  "keyframe",
