@@ -1,0 +1,28 @@
+[package]
+name = "osv-ui"
+version = "0.1.0"
+edition = "2021"
+description = "OSV Desktop Environment UI Components"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+slint = "1.9"
+
+[build-dependencies]
+slint-build = "1.9"
+
+[[bin]]
+name = "osv-bar"
+path = "src/bar.rs"
+
+[[bin]]
+name = "osv-intake"
+path = "src/intake.rs"
+
+[[bin]]
+name = "osv-control"
+path = "src/control.rs"
+
+[[bin]]
+name = "osv-preview"
+path = "src/main.rs"

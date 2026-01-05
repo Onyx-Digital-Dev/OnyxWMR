@@ -1,0 +1,55 @@
+// OSV Main Entry Point
+// Combines all components for preview
+
+import { OsvTheme } from "theme.slint";
+import { OsvBar, OsvBarWindow } from "bar.slint";
+import { OsvIntake, OsvIntakeWindow } from "intake.slint";
+import { OsvControl, OsvControlWindow } from "control.slint";
+
+// Re-export for external use
+export { OsvBar, OsvBarWindow, OsvIntake, OsvIntakeWindow, OsvControl, OsvControlWindow, OsvTheme }
+
+// Combined preview showing all components
+export component OsvPreview inherits Window {
+    title: "OSV Desktop Environment Preview";
+    width: 1200px;
+    height: 800px;
+    background: #0a1628;
+    
+    // Simulated desktop wallpaper area
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: @linear-gradient(135deg, #0a1628 0%, #12294a 50%, #1a3356 100%);
+    }
+    
+    // Status bar at top
+    OsvBar {
+        x: 8px;
+        y: 8px;
+        width: parent.width - 16px;
+        active-workspace: 1;
+        occupied-workspaces: [true, true, false, true, false, false, true, false];
+        window-title: "Onyx OSV";
+        time: "14:32";
+        wifi-connected: true;
+        bluetooth-on: true;
+        battery-level: 87;
+        volume-level: 65;
+    }
+    
+    // Control panel (main focus)
+    OsvControl {
+        x: (parent.width - 800px) / 2;
+        y: 50px;
+        active-section: 0;
+        cpu-usage: 0.42;
+        memory-usage: 0.67;
+        disk-usage: 0.35;
+        network-up: "1.2";
+        network-down: "15.8";
+    }
+    
+    // Intake launcher (shown as overlay concept)
+    // OsvIntake would appear when Super+Space is pressed
+}

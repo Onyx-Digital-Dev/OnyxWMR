@@ -1,0 +1,216 @@
+// OSV Shared UI Components
+import { OsvTheme } from "theme.slint";
+
+// Toggle Switch Component
+export component OsvToggle {
+    in property <bool> checked: false;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+    
+    width: 36px;
+    height: 20px;
+    
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        background: checked ? OsvTheme.accent : OsvTheme.surface;
+        border-width: 1px;
+        border-color: OsvTheme.border;
+        opacity: enabled ? 1.0 : 0.5;
+        
+        animate background { duration: 150ms; }
+        
+        // Thumb
+        Rectangle {
+            x: checked ? parent.width - self.width - 2px : 2px;
+            y: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            background: OsvTheme.bright;
+            
+            animate x { duration: 150ms; }
+        }
+    }
+    
+    TouchArea {
+        clicked => {
+            if (enabled) {
+                root.toggled(!checked);
+            }
+        }
+    }
+}
+
+// Slider Component
+export component OsvSlider {
+    in property <float> value: 0.5;
+    in property <float> min: 0.0;
+    in property <float> max: 1.0;
+    in property <bool> enabled: true;
+    callback changed(float);
+    
+    width: 200px;
+    height: 20px;
+    
+    Rectangle {
+        y: (parent.height - 4px) / 2;
+        width: 100%;
+        height: 4px;
+        border-radius: 2px;
+        background: OsvTheme.surface;
+        
+        // Fill
+        Rectangle {
+            width: parent.width * ((value - min) / (max - min));
+            height: 100%;
+            border-radius: 2px;
+            background: enabled ? OsvTheme.accent : OsvTheme.muted;
+        }
+    }
+    
+    // Thumb
+    Rectangle {
+        x: (parent.width - 16px) * ((value - min) / (max - min));
+        y: (parent.height - 16px) / 2;
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: OsvTheme.bright;
+        border-width: 2px;
+        border-color: enabled ? OsvTheme.accent : OsvTheme.muted;
+        opacity: enabled ? 1.0 : 0.5;
+    }
+    
+    TouchArea {
+        pointer-event(event) => {
+            if (enabled && event.kind == PointerEventKind.down) {
+                root.changed(min + (max - min) * (event.x / root.width));
+            }
+        }
+        moved => {
+            if (enabled && self.pressed) {
+                root.changed(min + (max - min) * clamp(self.mouse-x / root.width, 0.0, 1.0));
+            }
+        }
+    }
+}
+
+// Card Component
+export component OsvCard {
+    in property <string> title: "";
+    
+    min-height: 60px;
+    
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: OsvTheme.surface;
+        border-radius: OsvTheme.radius-lg;
+        border-width: 1px;
+        border-color: OsvTheme.border;
+        
+        VerticalLayout {
+            padding: OsvTheme.space-md;
+            spacing: OsvTheme.space-sm;
+            
+            if (title != ""): Text {
+                text: title;
+                color: OsvTheme.muted;
+                font-size: OsvTheme.font-label;
+                letter-spacing: 0.5px;
+            }
+            
+            @children
+        }
+    }
+}
+
+// Progress Bar Component
+export component OsvProgressBar {
+    in property <float> value: 0.5;
+    in property <color> bar-color: OsvTheme.accent;
+    in property <string> label: "";
+    
+    height: 24px;
+    
+    VerticalLayout {
+        spacing: 4px;
+        
+        if (label != ""): HorizontalLayout {
+            Text {
+                text: label;
+                color: OsvTheme.muted;
+                font-size: OsvTheme.font-label;
+            }
+            Rectangle { }
+            Text {
+                text: "\{round(value * 100)}%";
+                color: OsvTheme.text;
+                font-size: OsvTheme.font-label;
+            }
+        }
+        
+        Rectangle {
+            height: 6px;
+            border-radius: 3px;
+            background: OsvTheme.dark;
+            
+            Rectangle {
+                width: parent.width * clamp(value, 0.0, 1.0);
+                height: 100%;
+                border-radius: 3px;
+                background: bar-color;
+                
+                animate width { duration: 300ms; }
+            }
+        }
+    }
+}
+
+// Dropdown Component
+export component OsvDropdown {
+    in property <string> current-value: "";
+    in property <[string]> options: [];
+    in property <bool> expanded: false;
+    callback selected(string);
+    
+    height: 32px;
+    
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: OsvTheme.surface;
+        border-radius: OsvTheme.radius-sm;
+        border-width: 1px;
+        border-color: OsvTheme.border;
+        
+        HorizontalLayout {
+            padding-left: OsvTheme.space-sm;
+            padding-right: OsvTheme.space-sm;
+            
+            Text {
+                text: current-value;
+                color: OsvTheme.text;
+                font-size: OsvTheme.font-body;
+                vertical-alignment: center;
+            }
+            
+            Rectangle { }
+            
+            Text {
+                text: "▼";
+                color: OsvTheme.muted;
+                font-size: 10px;
+                vertical-alignment: center;
+            }
+        }
+    }
+    
+    TouchArea {
+        clicked => {
+            // Would toggle dropdown - handled by parent
+        }
+    }
+}

@@ -1,0 +1,657 @@
+// OSV Control Panel (osv-control)
+// System settings panel with telemetry dashboard
+
+import { OsvTheme } from "theme.slint";
+import { OsvToggle, OsvSlider, OsvCard, OsvProgressBar, OsvDropdown } from "components.slint";
+import { IconGauge, IconMonitor, IconVolume2, IconPower, IconBluetooth, IconPalette, IconInfo, IconCpu, IconHardDrive, IconGlobe, IconActivity, IconArrowUp, IconArrowDown, IconRoute, IconWifi } from "icons.slint";
+
+// Navigation section item
+component NavItem {
+    in property <string> label: "Section";
+    in property <string> icon-type: "monitor";
+    in property <bool> active: false;
+    callback clicked();
+    
+    height: 36px;
+    
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: active ? OsvTheme.surface : transparent;
+        
+        // Active indicator
+        if (active): Rectangle {
+            x: 0;
+            width: 2px;
+            height: 100%;
+            background: OsvTheme.accent;
+        }
+        
+        HorizontalLayout {
+            padding-left: 12px;
+            padding-right: 12px;
+            spacing: 8px;
+            
+            // Icon
+            Rectangle {
+                width: 16px;
+                height: 16px;
+                
+                if (icon-type == "gauge"): IconGauge { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
+                if (icon-type == "monitor"): IconMonitor { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
+                if (icon-type == "volume"): IconVolume2 { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
+                if (icon-type == "power"): IconPower { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
+                if (icon-type == "bluetooth"): IconBluetooth { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
+                if (icon-type == "palette"): IconPalette { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
+                if (icon-type == "info"): IconInfo { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
+                if (icon-type == "wifi"): IconWifi { size: 16px; icon-color: active ? OsvTheme.text : OsvTheme.muted; }
+            }
+            
+            // Label
+            Text {
+                text: label;
+                color: active ? OsvTheme.text : OsvTheme.muted;
+                font-size: OsvTheme.font-body;
+                vertical-alignment: center;
+            }
+        }
+        
+        animate background { duration: 100ms; }
+    }
+    
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Telemetry metric card
+component TelemetryMetric {
+    in property <string> label: "Metric";
+    in property <string> value: "0";
+    in property <string> unit: "";
+    in property <float> bar-value: 0.5;
+    in property <color> bar-color: OsvTheme.accent;
+    in property <string> icon-type: "cpu";
+    
+    height: 72px;
+    
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: OsvTheme.surface;
+        border-radius: OsvTheme.radius-md;
+        border-width: 1px;
+        border-color: OsvTheme.border;
+        
+        HorizontalLayout {
+            padding: OsvTheme.space-sm;
+            spacing: OsvTheme.space-sm;
+            
+            // Icon
+            Rectangle {
+                width: 32px;
+                height: 32px;
+                background: OsvTheme.dark;
+                border-radius: OsvTheme.radius-sm;
+                
+                if (icon-type == "cpu"): IconCpu { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
+                if (icon-type == "memory"): IconHardDrive { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
+                if (icon-type == "network"): IconGlobe { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
+                if (icon-type == "upload"): IconArrowUp { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
+                if (icon-type == "download"): IconArrowDown { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
+                if (icon-type == "activity"): IconActivity { x: 8px; y: 8px; size: 16px; icon-color: bar-color; }
+            }
+            
+            // Content
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 4px;
+                
+                Text {
+                    text: label;
+                    color: OsvTheme.muted;
+                    font-size: OsvTheme.font-label;
+                }
+                
+                HorizontalLayout {
+                    Text {
+                        text: value;
+                        color: OsvTheme.bright;
+                        font-size: 18px;
+                        font-weight: 600;
+                    }
+                    Text {
+                        text: " " + unit;
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-body;
+                        vertical-alignment: bottom;
+                    }
+                }
+                
+                // Progress bar
+                Rectangle {
+                    height: 4px;
+                    border-radius: 2px;
+                    background: OsvTheme.dark;
+                    
+                    Rectangle {
+                        width: parent.width * clamp(bar-value, 0.0, 1.0);
+                        height: 100%;
+                        border-radius: 2px;
+                        background: bar-color;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Route/Process item
+component RouteItem {
+    in property <string> name: "Process";
+    in property <string> status: "running";
+    in property <string> cpu: "0%";
+    in property <string> memory: "0 MB";
+    
+    height: 32px;
+    
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        
+        HorizontalLayout {
+            padding-left: OsvTheme.space-sm;
+            padding-right: OsvTheme.space-sm;
+            spacing: OsvTheme.space-md;
+            
+            // Status dot
+            Rectangle {
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: status == "running" ? #4ade80 : (status == "idle" ? OsvTheme.muted : #f87171);
+            }
+            
+            // Name
+            Text {
+                text: name;
+                color: OsvTheme.text;
+                font-size: OsvTheme.font-body;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+            
+            // CPU
+            Text {
+                text: cpu;
+                color: OsvTheme.muted;
+                font-size: OsvTheme.font-label;
+                vertical-alignment: center;
+                width: 48px;
+                horizontal-alignment: right;
+            }
+            
+            // Memory
+            Text {
+                text: memory;
+                color: OsvTheme.muted;
+                font-size: OsvTheme.font-label;
+                vertical-alignment: center;
+                width: 64px;
+                horizontal-alignment: right;
+            }
+        }
+    }
+}
+
+// Main Control Panel Component  
+export component OsvControl {
+    in property <int> active-section: 0; // 0 = Telemetry (default), 1 = Network, 2 = Display, etc.
+    
+    // Telemetry data
+    in property <float> cpu-usage: 0.42;
+    in property <float> memory-usage: 0.67;
+    in property <float> disk-usage: 0.35;
+    in property <string> network-up: "1.2";
+    in property <string> network-down: "15.8";
+    
+    // Display settings
+    in property <float> brightness: 0.8;
+    in property <bool> night-mode: false;
+    in property <string> resolution: "1920x1080";
+    
+    callback section-changed(int);
+    callback brightness-changed(float);
+    callback night-mode-toggled(bool);
+    
+    width: 800px;
+    height: 600px;
+    
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: OsvTheme.osv-bg;
+        border-radius: OsvTheme.radius-lg;
+        border-width: 1px;
+        border-color: OsvTheme.border;
+        drop-shadow-blur: 8px;
+        drop-shadow-offset-y: 4px;
+        drop-shadow-color: rgba(0, 0, 0, 0.5);
+        clip: true;
+        
+        HorizontalLayout {
+            // Left sidebar navigation
+            Rectangle {
+                width: 200px;
+                background: OsvTheme.dark;
+                
+                VerticalLayout {
+                    padding-top: OsvTheme.space-md;
+                    spacing: 2px;
+                    
+                    // Section header
+                    Text {
+                        text: "SYSTEM";
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-label;
+                        letter-spacing: 1px;
+                        horizontal-alignment: left;
+                        x: 12px;
+                    }
+                    
+                    Rectangle { height: 8px; }
+                    
+                    NavItem {
+                        label: "Telemetry";
+                        icon-type: "gauge";
+                        active: active-section == 0;
+                        clicked => { section-changed(0); }
+                    }
+                    
+                    NavItem {
+                        label: "Network";
+                        icon-type: "wifi";
+                        active: active-section == 1;
+                        clicked => { section-changed(1); }
+                    }
+                    
+                    NavItem {
+                        label: "Display";
+                        icon-type: "monitor";
+                        active: active-section == 2;
+                        clicked => { section-changed(2); }
+                    }
+                    
+                    NavItem {
+                        label: "Sound";
+                        icon-type: "volume";
+                        active: active-section == 3;
+                        clicked => { section-changed(3); }
+                    }
+                    
+                    NavItem {
+                        label: "Power";
+                        icon-type: "power";
+                        active: active-section == 4;
+                        clicked => { section-changed(4); }
+                    }
+                    
+                    NavItem {
+                        label: "Bluetooth";
+                        icon-type: "bluetooth";
+                        active: active-section == 5;
+                        clicked => { section-changed(5); }
+                    }
+                    
+                    NavItem {
+                        label: "Appearance";
+                        icon-type: "palette";
+                        active: active-section == 6;
+                        clicked => { section-changed(6); }
+                    }
+                    
+                    NavItem {
+                        label: "About";
+                        icon-type: "info";
+                        active: active-section == 7;
+                        clicked => { section-changed(7); }
+                    }
+                    
+                    // Spacer
+                    Rectangle { vertical-stretch: 1; }
+                }
+            }
+            
+            // Right content area
+            Rectangle {
+                horizontal-stretch: 1;
+                background: OsvTheme.osv-bg;
+                
+                // Telemetry Dashboard (Section 0)
+                if (active-section == 0): VerticalLayout {
+                    padding: OsvTheme.space-md;
+                    spacing: OsvTheme.space-md;
+                    
+                    // Header
+                    Text {
+                        text: "SYSTEM TELEMETRY";
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-label;
+                        letter-spacing: 1px;
+                    }
+                    
+                    // Metrics grid
+                    HorizontalLayout {
+                        spacing: OsvTheme.space-sm;
+                        
+                        TelemetryMetric {
+                            horizontal-stretch: 1;
+                            label: "CPU Usage";
+                            value: "\{round(cpu-usage * 100)}";
+                            unit: "%";
+                            bar-value: cpu-usage;
+                            bar-color: cpu-usage > 0.8 ? #f87171 : (cpu-usage > 0.6 ? #fbbf24 : OsvTheme.accent);
+                            icon-type: "cpu";
+                        }
+                        
+                        TelemetryMetric {
+                            horizontal-stretch: 1;
+                            label: "Memory";
+                            value: "\{round(memory-usage * 100)}";
+                            unit: "%";
+                            bar-value: memory-usage;
+                            bar-color: memory-usage > 0.8 ? #f87171 : (memory-usage > 0.6 ? #fbbf24 : #a78bfa);
+                            icon-type: "memory";
+                        }
+                        
+                        TelemetryMetric {
+                            horizontal-stretch: 1;
+                            label: "Disk";
+                            value: "\{round(disk-usage * 100)}";
+                            unit: "%";
+                            bar-value: disk-usage;
+                            bar-color: #4ade80;
+                            icon-type: "activity";
+                        }
+                    }
+                    
+                    // Network throughput
+                    HorizontalLayout {
+                        spacing: OsvTheme.space-sm;
+                        
+                        TelemetryMetric {
+                            horizontal-stretch: 1;
+                            label: "Network Upload";
+                            value: network-up;
+                            unit: "MB/s";
+                            bar-value: 0.3;
+                            bar-color: #22d3ee;
+                            icon-type: "upload";
+                        }
+                        
+                        TelemetryMetric {
+                            horizontal-stretch: 1;
+                            label: "Network Download";
+                            value: network-down;
+                            unit: "MB/s";
+                            bar-value: 0.65;
+                            bar-color: #22d3ee;
+                            icon-type: "download";
+                        }
+                    }
+                    
+                    // Routes/Processes section
+                    Rectangle {
+                        vertical-stretch: 1;
+                        
+                        VerticalLayout {
+                            spacing: OsvTheme.space-sm;
+                            
+                            // Header
+                            HorizontalLayout {
+                                Text {
+                                    text: "ACTIVE ROUTES";
+                                    color: OsvTheme.muted;
+                                    font-size: OsvTheme.font-label;
+                                    letter-spacing: 1px;
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                                IconRoute {
+                                    size: 14px;
+                                    icon-color: OsvTheme.muted;
+                                }
+                            }
+                            
+                            // Process list card
+                            Rectangle {
+                                vertical-stretch: 1;
+                                background: OsvTheme.surface;
+                                border-radius: OsvTheme.radius-md;
+                                border-width: 1px;
+                                border-color: OsvTheme.border;
+                                
+                                VerticalLayout {
+                                    padding: OsvTheme.space-sm;
+                                    spacing: 0;
+                                    
+                                    // Column headers
+                                    Rectangle {
+                                        height: 24px;
+                                        
+                                        HorizontalLayout {
+                                            padding-left: OsvTheme.space-sm;
+                                            padding-right: OsvTheme.space-sm;
+                                            spacing: OsvTheme.space-md;
+                                            
+                                            Rectangle { width: 8px; }
+                                            Text {
+                                                text: "PROCESS";
+                                                color: OsvTheme.muted;
+                                                font-size: 10px;
+                                                letter-spacing: 0.5px;
+                                                horizontal-stretch: 1;
+                                            }
+                                            Text {
+                                                text: "CPU";
+                                                color: OsvTheme.muted;
+                                                font-size: 10px;
+                                                letter-spacing: 0.5px;
+                                                width: 48px;
+                                                horizontal-alignment: right;
+                                            }
+                                            Text {
+                                                text: "MEM";
+                                                color: OsvTheme.muted;
+                                                font-size: 10px;
+                                                letter-spacing: 0.5px;
+                                                width: 64px;
+                                                horizontal-alignment: right;
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Process rows
+                                    RouteItem { name: "osvwm"; status: "running"; cpu: "2.4%"; memory: "128 MB"; }
+                                    RouteItem { name: "osv-bar"; status: "running"; cpu: "0.8%"; memory: "24 MB"; }
+                                    RouteItem { name: "firefox"; status: "running"; cpu: "12.3%"; memory: "1.2 GB"; }
+                                    RouteItem { name: "alacritty"; status: "running"; cpu: "0.2%"; memory: "48 MB"; }
+                                    RouteItem { name: "pipewire"; status: "running"; cpu: "1.1%"; memory: "32 MB"; }
+                                    RouteItem { name: "dbus-daemon"; status: "idle"; cpu: "0.0%"; memory: "8 MB"; }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Display Settings (Section 2)
+                if (active-section == 2): VerticalLayout {
+                    padding: OsvTheme.space-md;
+                    spacing: OsvTheme.space-md;
+                    
+                    // Header
+                    Text {
+                        text: "DISPLAY";
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-label;
+                        letter-spacing: 1px;
+                    }
+                    
+                    // Brightness card
+                    OsvCard {
+                        title: "BRIGHTNESS";
+                        
+                        HorizontalLayout {
+                            spacing: OsvTheme.space-md;
+                            
+                            IconMonitor {
+                                size: 20px;
+                                icon-color: OsvTheme.muted;
+                            }
+                            
+                            OsvSlider {
+                                horizontal-stretch: 1;
+                                value: brightness;
+                                changed(v) => { brightness-changed(v); }
+                            }
+                            
+                            Text {
+                                text: "\{round(brightness * 100)}%";
+                                color: OsvTheme.text;
+                                font-size: OsvTheme.font-body;
+                                width: 48px;
+                                horizontal-alignment: right;
+                            }
+                        }
+                    }
+                    
+                    // Night mode card
+                    OsvCard {
+                        title: "NIGHT MODE";
+                        
+                        HorizontalLayout {
+                            spacing: OsvTheme.space-md;
+                            
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                spacing: 4px;
+                                
+                                Text {
+                                    text: "Reduce blue light";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                }
+                                Text {
+                                    text: "Easier on your eyes at night";
+                                    color: OsvTheme.muted;
+                                    font-size: OsvTheme.font-label;
+                                }
+                            }
+                            
+                            OsvToggle {
+                                checked: night-mode;
+                                toggled(v) => { night-mode-toggled(v); }
+                            }
+                        }
+                    }
+                    
+                    // Resolution card
+                    OsvCard {
+                        title: "RESOLUTION";
+                        
+                        HorizontalLayout {
+                            spacing: OsvTheme.space-md;
+                            
+                            Text {
+                                text: "Display resolution";
+                                color: OsvTheme.text;
+                                font-size: OsvTheme.font-body;
+                                horizontal-stretch: 1;
+                            }
+                            
+                            OsvDropdown {
+                                width: 140px;
+                                current-value: resolution;
+                                options: ["1920x1080", "2560x1440", "3840x2160"];
+                            }
+                        }
+                    }
+                    
+                    // Display info card
+                    OsvCard {
+                        title: "DISPLAY INFO";
+                        
+                        VerticalLayout {
+                            spacing: 8px;
+                            
+                            HorizontalLayout {
+                                Text { text: "Model"; color: OsvTheme.muted; font-size: OsvTheme.font-body; horizontal-stretch: 1; }
+                                Text { text: "Generic Display"; color: OsvTheme.text; font-size: OsvTheme.font-body; }
+                            }
+                            
+                            HorizontalLayout {
+                                Text { text: "Resolution"; color: OsvTheme.muted; font-size: OsvTheme.font-body; horizontal-stretch: 1; }
+                                Text { text: resolution; color: OsvTheme.text; font-size: OsvTheme.font-body; }
+                            }
+                            
+                            HorizontalLayout {
+                                Text { text: "Refresh Rate"; color: OsvTheme.muted; font-size: OsvTheme.font-body; horizontal-stretch: 1; }
+                                Text { text: "60 Hz"; color: OsvTheme.text; font-size: OsvTheme.font-body; }
+                            }
+                        }
+                    }
+                    
+                    // Spacer
+                    Rectangle { vertical-stretch: 1; }
+                }
+                
+                // Placeholder for other sections
+                if (active-section != 0 && active-section != 2): VerticalLayout {
+                    padding: OsvTheme.space-md;
+                    
+                    Text {
+                        text: active-section == 1 ? "NETWORK" :
+                              active-section == 3 ? "SOUND" :
+                              active-section == 4 ? "POWER" :
+                              active-section == 5 ? "BLUETOOTH" :
+                              active-section == 6 ? "APPEARANCE" :
+                              "ABOUT";
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-label;
+                        letter-spacing: 1px;
+                    }
+                    
+                    Rectangle { vertical-stretch: 1; }
+                    
+                    Text {
+                        text: "Settings panel content";
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-body;
+                        horizontal-alignment: center;
+                    }
+                    
+                    Rectangle { vertical-stretch: 1; }
+                }
+            }
+        }
+    }
+}
+
+// Preview/Export component
+export component OsvControlWindow inherits Window {
+    title: "osv-control";
+    width: 800px;
+    height: 600px;
+    background: #0a1628;
+    
+    OsvControl {
+        active-section: 0; // Start on Telemetry dashboard
+        cpu-usage: 0.42;
+        memory-usage: 0.67;
+        disk-usage: 0.35;
+        network-up: "1.2";
+        network-down: "15.8";
+        brightness: 0.8;
+        night-mode: false;
+        resolution: "1920x1080";
+    }
+}

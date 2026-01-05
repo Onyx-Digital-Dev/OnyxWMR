@@ -1,0 +1,241 @@
+// OSV Status Bar (osv-bar)
+// Top status bar with workspace indicators, title, and system tray
+
+import { OsvTheme } from "theme.slint";
+import { IconWifi, IconBluetooth, IconBattery, IconVolume2 } from "icons.slint";
+
+// Workspace capsule for Focus workspaces (1-6)
+component WorkspaceCapsule {
+    in property <int> number: 1;
+    in property <bool> active: false;
+    in property <bool> occupied: false;
+    callback clicked();
+    
+    width: 16px;
+    height: 10px;
+    
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 5px;
+        background: active ? OsvTheme.accent : (occupied ? OsvTheme.surface : transparent);
+        border-width: active ? 0px : 1px;
+        border-color: OsvTheme.border.with-alpha(0.5);
+        
+        animate background { duration: 150ms; }
+    }
+    
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Immersion workspace indicator (7-8) - distinct circular style
+component ImmersionIndicator {
+    in property <int> number: 7;
+    in property <bool> active: false;
+    in property <bool> occupied: false;
+    callback clicked();
+    
+    width: 10px;
+    height: 10px;
+    
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 5px;
+        background: active ? OsvTheme.accent : (occupied ? OsvTheme.dark : transparent);
+        border-width: 1px;
+        border-color: active ? OsvTheme.accent : OsvTheme.border;
+        
+        animate background { duration: 150ms; }
+        animate border-color { duration: 150ms; }
+    }
+    
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// System tray icon wrapper
+component TrayIcon {
+    in property <bool> hovered: false;
+    
+    width: 16px;
+    height: 16px;
+    
+    @children
+}
+
+// Main Bar Component
+export component OsvBar {
+    // State properties
+    in property <int> active-workspace: 1;
+    in property <[bool]> occupied-workspaces: [true, false, true, false, false, false, false, false];
+    in property <string> window-title: "Onyx OSV";
+    in property <string> time: "12:34";
+    
+    // System status
+    in property <bool> wifi-connected: true;
+    in property <bool> bluetooth-on: true;
+    in property <int> battery-level: 85;
+    in property <bool> battery-charging: false;
+    in property <int> volume-level: 75;
+    
+    // Callbacks
+    callback workspace-clicked(int);
+    
+    width: 100%;
+    height: 16px;
+    
+    // Main bar container with gradient background
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 6px;
+        background: @linear-gradient(180deg, #1a3356 0%, #0E213D 100%);
+        border-width: 1px;
+        border-color: rgba(42, 74, 110, 0.3);
+        drop-shadow-blur: 3px;
+        drop-shadow-offset-y: 1px;
+        drop-shadow-color: rgba(0, 0, 0, 0.35);
+        
+        HorizontalLayout {
+            padding-left: 8px;
+            padding-right: 8px;
+            spacing: 6px;
+            
+            // LEFT: Workspace indicators
+            HorizontalLayout {
+                spacing: 4px;
+                vertical-stretch: 0;
+                
+                // Focus workspaces (1-6)
+                for i in 6: WorkspaceCapsule {
+                    number: i + 1;
+                    active: active-workspace == i + 1;
+                    occupied: occupied-workspaces[i];
+                    clicked => { workspace-clicked(i + 1); }
+                }
+                
+                // Separator
+                Rectangle {
+                    width: 1px;
+                    height: 8px;
+                    background: OsvTheme.border.with-alpha(0.5);
+                }
+                
+                // Immersion workspaces (7-8)
+                for i in 2: ImmersionIndicator {
+                    number: i + 7;
+                    active: active-workspace == i + 7;
+                    occupied: occupied-workspaces[i + 6];
+                    clicked => { workspace-clicked(i + 7); }
+                }
+            }
+            
+            // CENTER: Window title / "Onyx OSV"
+            Rectangle {
+                horizontal-stretch: 1;
+                
+                Text {
+                    text: window-title;
+                    color: OsvTheme.muted;
+                    font-size: 11px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+            
+            // RIGHT: System tray + Clock
+            HorizontalLayout {
+                spacing: 8px;
+                vertical-stretch: 0;
+                
+                // Network (Wifi)
+                TrayIcon {
+                    IconWifi {
+                        size: 12px;
+                        icon-color: wifi-connected ? OsvTheme.muted : OsvTheme.muted.with-alpha(0.4);
+                    }
+                }
+                
+                // Bluetooth
+                TrayIcon {
+                    IconBluetooth {
+                        size: 12px;
+                        icon-color: bluetooth-on ? OsvTheme.muted : OsvTheme.muted.with-alpha(0.4);
+                    }
+                }
+                
+                // Battery with percentage
+                HorizontalLayout {
+                    spacing: 2px;
+                    
+                    TrayIcon {
+                        IconBattery {
+                            size: 12px;
+                            icon-color: battery-level < 20 ? #ff6b6b : OsvTheme.muted;
+                        }
+                    }
+                    Text {
+                        text: "\{battery-level}%";
+                        color: OsvTheme.muted;
+                        font-size: 10px;
+                        vertical-alignment: center;
+                    }
+                }
+                
+                // Volume
+                TrayIcon {
+                    IconVolume2 {
+                        size: 12px;
+                        icon-color: volume-level > 0 ? OsvTheme.muted : OsvTheme.muted.with-alpha(0.4);
+                    }
+                }
+                
+                // Separator
+                Rectangle {
+                    width: 1px;
+                    height: 8px;
+                    background: OsvTheme.border.with-alpha(0.5);
+                }
+                
+                // Clock
+                Text {
+                    text: time;
+                    color: OsvTheme.muted;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}
+
+// Preview/Export component
+export component OsvBarWindow inherits Window {
+    title: "osv-bar";
+    width: 800px;
+    height: 32px;
+    background: transparent;
+    
+    Rectangle {
+        background: #0a1628;
+        
+        OsvBar {
+            x: 8px;
+            y: 8px;
+            width: parent.width - 16px;
+            active-workspace: 1;
+            occupied-workspaces: [true, true, false, true, false, false, true, false];
+            window-title: "Onyx OSV";
+            time: "14:32";
+            wifi-connected: true;
+            bluetooth-on: true;
+            battery-level: 87;
+            volume-level: 65;
+        }
+    }
+}
