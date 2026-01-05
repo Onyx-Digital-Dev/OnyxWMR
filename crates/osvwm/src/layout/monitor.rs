@@ -573,9 +573,17 @@ impl<W: LayoutElement> Monitor<W> {
     ) {
         let (mut workspace_idx, target) = self.resolve_add_window_target(target);
 
+        // Get window ID before adding (for potential fullscreen)
+        let window_id = tile.window().id().clone();
+
         let workspace = &mut self.workspaces[workspace_idx];
 
         workspace.add_tile(tile, target, activate, width, is_full_width, is_floating);
+
+        // OSV: Force fullscreen (Frame mode) on immersion workspaces (7-8)
+        if crate::osv::is_immersion_workspace(workspace_idx) {
+            workspace.set_fullscreen(&window_id, true);
+        }
 
         // After adding a new window, workspace becomes this output's own.
         if workspace.name().is_none() {
