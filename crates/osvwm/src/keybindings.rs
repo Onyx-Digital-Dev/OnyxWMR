@@ -3,6 +3,7 @@
 //! osvwm uses a fixed set of keybindings that cannot be changed by the user.
 //! This enforces muscle-memory-driven workflow.
 
+use osvwm_config::Action as ConfigAction;
 use smithay::input::keyboard::{Keysym, ModifiersState};
 
 /// Modifier key (Super/Mod4).
@@ -64,6 +65,30 @@ pub enum Action {
     CloseWindow,
     /// Exit compositor (Super+Shift+Escape)
     ExitCompositor,
+}
+
+impl Action {
+    /// Convert to osvwm_config::Action for the compositor to execute.
+    pub fn to_config_action(self) -> ConfigAction {
+        match self {
+            Action::WorkspaceUp => ConfigAction::FocusWorkspaceUp,
+            Action::WorkspaceDown => ConfigAction::FocusWorkspaceDown,
+            Action::FocusLeft => ConfigAction::FocusColumnLeft,
+            Action::FocusRight => ConfigAction::FocusColumnRight,
+            Action::MoveWindowLeft => ConfigAction::MoveColumnLeft,
+            Action::MoveWindowRight => ConfigAction::MoveColumnRight,
+            Action::MoveWindowToWorkspaceDown => ConfigAction::MoveWindowToWorkspaceDown(true),
+            Action::MoveWindowToWorkspaceUp => ConfigAction::MoveWindowToWorkspaceUp(true),
+            Action::CycleWindowSize => ConfigAction::SwitchPresetWindowWidth,
+            Action::ToggleFrame => ConfigAction::FullscreenWindow,
+            Action::ToggleFloating => ConfigAction::ToggleWindowFloating,
+            Action::OpenOverview => ConfigAction::OpenOverview,
+            Action::LaunchIntake => ConfigAction::Spawn(vec![LAUNCHER_COMMAND.to_string()]),
+            Action::LaunchTerminal => ConfigAction::Spawn(vec![TERMINAL_COMMAND.to_string()]),
+            Action::CloseWindow => ConfigAction::CloseWindow,
+            Action::ExitCompositor => ConfigAction::Quit(false),
+        }
+    }
 }
 
 /// Check if a key event matches a hardcoded binding.

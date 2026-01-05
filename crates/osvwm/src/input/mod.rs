@@ -45,6 +45,7 @@ use self::resize_grab::ResizeGrab;
 use self::spatial_movement_grab::SpatialMovementGrab;
 #[cfg(feature = "dbus")]
 use crate::dbus::freedesktop_a11y::KbMonBlock;
+use crate::keybindings;
 use crate::layout::scrolling::ScrollDirection;
 use crate::layout::{ActivateWindow, LayoutElement as _};
 use crate::osvwm::{CastTarget, PointerVisibility, State};
@@ -465,23 +466,23 @@ impl State {
                     }
                 }
 
-                if this.niri.exit_confirm_dialog.is_open() && pressed {
+                if this.osvwm.exit_confirm_dialog.is_open() && pressed {
                     if raw == Some(Keysym::Return) {
                         info!("quitting after confirming exit dialog");
-                        this.niri.stop_signal.stop();
+                        this.osvwm.stop_signal.stop();
                     }
 
                     // Don't send this press to any clients.
-                    this.niri.suppressed_keys.insert(key_code);
+                    this.osvwm.suppressed_keys.insert(key_code);
                     return FilterResult::Intercept(None);
                 }
 
                 // Check if all modifiers were released while the MRU UI was open. If so, close the
                 // UI (which will also transfer the focus to the current MRU UI selection).
-                if this.niri.window_mru_ui.is_open() && !pressed && modifiers.is_empty() {
+                if this.osvwm.window_mru_ui.is_open() && !pressed && modifiers.is_empty() {
                     this.do_action(Action::MruConfirm, false);
 
-                    if this.niri.suppressed_keys.remove(&key_code) {
+                    if this.osvwm.suppressed_keys.remove(&key_code) {
                         return FilterResult::Intercept(None);
                     } else {
                         return FilterResult::Forward;
@@ -490,7 +491,7 @@ impl State {
 
                 if pressed
                     && raw == Some(Keysym::Escape)
-                    && (this.niri.pick_window.is_some() || this.niri.pick_color.is_some())
+                    && (this.osvwm.pick_window.is_some() || this.osvwm.pick_color.is_some())
                 {
                     // We window picking state so the pick window grab must be active.
                     // Unsetting it cancels window picking.
@@ -499,21 +500,21 @@ impl State {
                         .get_pointer()
                         .unwrap()
                         .unset_grab(this, serial, time);
-                    this.niri.suppressed_keys.insert(key_code);
+                    this.osvwm.suppressed_keys.insert(key_code);
                     return FilterResult::Intercept(None);
                 }
 
                 if let Some(Keysym::space) = raw {
-                    this.niri.screenshot_ui.set_space_down(pressed);
+                    this.osvwm.screenshot_ui.set_space_down(pressed);
                 }
 
                 let res = {
-                    let config = this.niri.config.borrow();
+                    let config = this.osvwm.config.borrow();
                     let bindings =
-                        make_binds_iter(&config, &mut this.niri.window_mru_ui, modifiers);
+                        make_binds_iter(&config, &mut this.osvwm.window_mru_ui, modifiers);
 
                     should_intercept_key(
-                        &mut this.niri.suppressed_keys,
+                        &mut this.osvwm.suppressed_keys,
                         bindings,
                         mod_key,
                         key_code,
@@ -521,25 +522,25 @@ impl State {
                         raw,
                         pressed,
                         *mods,
-                        &this.niri.screenshot_ui,
-                        this.niri.config.borrow().input.disable_power_key_handling,
+                        &this.osvwm.screenshot_ui,
+                        this.osvwm.config.borrow().input.disable_power_key_handling,
                         is_inhibiting_shortcuts,
                     )
                 };
 
                 if matches!(res, FilterResult::Forward) {
                     // If we didn't find any bind, try other hardcoded keys.
-                    if this.niri.keyboard_focus.is_overview() && pressed {
+                    if this.osvwm.keyboard_focus.is_overview() && pressed {
                         if let Some(bind) = raw.and_then(|raw| hardcoded_overview_bind(raw, *mods))
                         {
-                            this.niri.suppressed_keys.insert(key_code);
+                            this.osvwm.suppressed_keys.insert(key_code);
                             return FilterResult::Intercept(Some(bind));
                         }
                     }
 
                     // Interaction with the active window, immediately update the active window's
                     // focus timestamp without waiting for a possible pending MRU lock-in delay.
-                    this.niri.mru_apply_keyboard_commit();
+                    this.osvwm.mru_apply_keyboard_commit();
                 }
 
                 res
@@ -4391,9 +4392,9 @@ fn find_bind<'a>(
 ) -> Option<Bind> {
     use keysyms::*;
 
-    // Handle hardcoded binds.
+    // Handle system hardcoded binds (VT switching, power key).
     #[allow(non_upper_case_globals)] // wat
-    let hardcoded_action = match modified.raw() {
+    let system_hardcoded_action = match modified.raw() {
         modified @ KEY_XF86Switch_VT_1..=KEY_XF86Switch_VT_12 => {
             let vt = (modified - KEY_XF86Switch_VT_1 + 1) as i32;
             Some(Action::ChangeVt(vt))
@@ -4402,6 +4403,60 @@ fn find_bind<'a>(
         _ => None,
     };
 
+    if let Some(action) = system_hardcoded_action {
+        return Some(Bind {
+            key: Key {
+                trigger: Trigger::Keysym(modified),
+                modifiers: Modifiers::empty(),
+            },
+            action,
+            repeat: true,
+            cooldown: None,
+            allow_when_locked: false,
+            allow_inhibiting: false,
+            hotkey_overlay_title: None,
+        });
+    }
+
+    // OSV: Handle hardcoded keybindings (Super+key combinations).
+    // These take priority over any configured bindings.
+    if let Some(osv_action) = keybindings::match_keybinding(&mods, modified) {
+        let action = osv_action.to_config_action();
+        return Some(Bind {
+            key: Key {
+                trigger: Trigger::Keysym(modified),
+                modifiers: Modifiers::COMPOSITOR,
+            },
+            action,
+            repeat: true,
+            cooldown: None,
+            allow_when_locked: false,
+            allow_inhibiting: false,
+            hotkey_overlay_title: None,
+        });
+    }
+
+    // Also check with raw keysym for OSV bindings
+    if let Some(raw_sym) = raw {
+        if let Some(osv_action) = keybindings::match_keybinding(&mods, raw_sym) {
+            let action = osv_action.to_config_action();
+            return Some(Bind {
+                key: Key {
+                    trigger: Trigger::Keysym(raw_sym),
+                    modifiers: Modifiers::COMPOSITOR,
+                },
+                action,
+                repeat: true,
+                cooldown: None,
+                allow_when_locked: false,
+                allow_inhibiting: false,
+                hotkey_overlay_title: None,
+            });
+        }
+    }
+
+    // Fall back to configured bindings (though OSV doesn't use these)
+    let hardcoded_action: Option<Action> = None;
     if let Some(action) = hardcoded_action {
         return Some(Bind {
             key: Key {
