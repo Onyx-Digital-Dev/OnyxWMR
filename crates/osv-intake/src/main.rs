@@ -1,15 +1,17 @@
 //! osv-intake - Application launcher for osvwm
 //!
-//! A keyboard-driven application launcher using Slint UI.
+//! A lightweight Slint-based launcher that queries osv-intake-daemon
+//! for instant application search results.
+//!
 //! Features:
-//! - Fuzzy search through .desktop applications
+//! - Queries daemon for fuzzy search results
 //! - Results list with keyboard navigation
 //! - Up/Down to navigate, Enter to launch, Escape to close
 
-mod apps;
+mod ipc;
 
 use anyhow::Result;
-use apps::AppList;
+use ipc::{AppInfo, DaemonClient};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::process::Command;
@@ -31,9 +33,18 @@ fn main() -> Result<()> {
 
     info!("osv-intake starting...");
 
-    // Load applications for searching
-    let apps = AppList::load();
-    info!("Loaded {} applications", apps.len());
+    // Connect to daemon
+    let daemon = match DaemonClient::connect() {
+        Ok(client) => {
+            info!("Connected to osv-intake-daemon");
+            Some(Rc::new(RefCell::new(client)))
+        }
+        Err(e) => {
+            warn!("Failed to connect to daemon: {}", e);
+            warn!("Falling back to direct loading");
+            None
+        }
+    };
 
     // Create the Slint UI
     let ui = IntakeLauncher::new()?;
@@ -43,10 +54,10 @@ fn main() -> Result<()> {
     ui.set_results(ModelRc::from(results_model.clone()));
 
     // Track current results for launching
-    let current_results: Rc<RefCell<Vec<apps::App>>> = Rc::new(RefCell::new(Vec::new()));
+    let current_results: Rc<RefCell<Vec<AppInfo>>> = Rc::new(RefCell::new(Vec::new()));
 
-    // Handle search changes - update results
-    let apps_for_search = apps.clone();
+    // Handle search changes - query daemon for results
+    let daemon_for_search = daemon.clone();
     let results_for_search = results_model.clone();
     let current_for_search = current_results.clone();
     let ui_weak = ui.as_weak();
@@ -62,22 +73,30 @@ fn main() -> Result<()> {
             return;
         }
 
-        // Fuzzy search
-        let matched_indices = apps_for_search.search(&query_str);
-        let mut matched_apps = Vec::new();
-        let mut slint_results = Vec::new();
-
-        for &idx in matched_indices.iter().take(MAX_RESULTS) {
-            if let Some(app) = apps_for_search.get(idx) {
-                slint_results.push(AppResult {
-                    name: SharedString::from(&app.name),
-                    description: SharedString::from(
-                        app.generic_name.as_deref().unwrap_or("")
-                    ),
-                    exec: SharedString::from(&app.exec),
-                });
-                matched_apps.push(app.clone());
+        // Query daemon for results
+        let apps = if let Some(ref daemon) = daemon_for_search {
+            match daemon.borrow_mut().search(&query_str) {
+                Ok(apps) => apps,
+                Err(e) => {
+                    warn!("Daemon query failed: {}", e);
+                    Vec::new()
+                }
             }
+        } else {
+            Vec::new()
+        };
+
+        // Convert to Slint model
+        let mut slint_results = Vec::new();
+        let mut matched_apps = Vec::new();
+
+        for app in apps.into_iter().take(MAX_RESULTS) {
+            slint_results.push(AppResult {
+                name: SharedString::from(&app.name),
+                description: SharedString::from(app.generic_name.as_deref().unwrap_or("")),
+                exec: SharedString::from(&app.exec),
+            });
+            matched_apps.push(app);
         }
 
         // Update models

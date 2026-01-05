@@ -12,6 +12,10 @@ build = "build.rs"
 name = "osv-intake"
 path = "src/main.rs"
 
+[[bin]]
+name = "osv-intake-daemon"
+path = "src/daemon.rs"
+
 [dependencies]
 osv-ipc = { version = "0.1.0", path = "../osv-ipc" }
 anyhow.workspace = true
