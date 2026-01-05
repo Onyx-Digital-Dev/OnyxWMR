@@ -445,7 +445,7 @@ impl Config {
     pub fn load_default() -> Self {
         let res = Config::parse(
             Path::new("default-config.kdl"),
-            include_str!("../../resources/default-config.kdl"),
+            include_str!("../../../resources/default-config.kdl"),
         );
 
         // Includes in the default config can break its parsing at runtime.
@@ -600,7 +600,7 @@ impl ConfigPath {
 
         *created_at = Some(path);
 
-        let default = include_bytes!("../../resources/default-config.kdl");
+        let default = include_bytes!("../../../resources/default-config.kdl");
 
         new_file
             .write_all(default)

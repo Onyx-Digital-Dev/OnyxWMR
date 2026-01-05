@@ -3,7 +3,7 @@ use std::iter::zip;
 use std::rc::Rc;
 use std::time::Duration;
 
-use osvwm_config::{CornerRadius, LayoutPart};
+use osvwm_config::{CornerRadius, LayoutPart, Workspace as WorkspaceConfig, WorkspaceName};
 use smithay::backend::renderer::element::utils::{
     CropRenderElement, Relocate, RelocateRenderElement, RescaleRenderElement,
 };
@@ -20,6 +20,7 @@ use super::workspace::{
 use super::{compute_overview_zoom, ActivateWindow, HitType, LayoutElement, Options};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
+use crate::osv::{WORKSPACE_COUNT, WORKSPACE_NAMES};
 use crate::osvwm_render_elements;
 use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::shadow::ShadowRenderElement;
@@ -288,9 +289,34 @@ impl From<&super::OverviewProgress> for OverviewProgress {
 }
 
 impl<W: LayoutElement> Monitor<W> {
+    /// Create fixed 8 workspaces with OSV names.
+    /// This is the OSV way - no dynamic workspaces.
+    fn create_fixed_workspaces(
+        output: &Output,
+        clock: &Clock,
+        options: &Rc<Options>,
+    ) -> Vec<Workspace<W>> {
+        WORKSPACE_NAMES
+            .iter()
+            .map(|name| {
+                let config = WorkspaceConfig {
+                    name: WorkspaceName(name.to_string()),
+                    open_on_output: None,
+                    layout: None,
+                };
+                Workspace::new_with_config(
+                    output.clone(),
+                    Some(config),
+                    clock.clone(),
+                    options.clone(),
+                )
+            })
+            .collect()
+    }
+
     pub fn new(
         output: Output,
-        mut workspaces: Vec<Workspace<W>>,
+        _workspaces: Vec<Workspace<W>>, // Ignored - we create fixed 8 workspaces
         ws_id_to_activate: Option<WorkspaceId>,
         clock: Clock,
         base_options: Rc<Options>,
@@ -303,28 +329,17 @@ impl<W: LayoutElement> Monitor<W> {
         let view_size = output_size(&output);
         let working_area = compute_working_area(&output);
 
-        // Prepare the workspaces: set output, empty first, empty last.
+        // OSV: Create exactly 8 fixed workspaces
+        let mut workspaces = Self::create_fixed_workspaces(&output, &clock, &options);
         let mut active_workspace_idx = 0;
 
-        for (idx, ws) in workspaces.iter_mut().enumerate() {
-            assert!(ws.has_windows_or_name());
-
-            ws.set_output(Some(output.clone()));
-            ws.update_config(options.clone());
-
+        // If a workspace ID was specified to activate, find and activate it
+        for (idx, ws) in workspaces.iter().enumerate() {
             if ws_id_to_activate.is_some_and(|id| ws.id() == id) {
                 active_workspace_idx = idx;
+                break;
             }
         }
-
-        if options.layout.empty_workspace_above_first && !workspaces.is_empty() {
-            let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
-            workspaces.insert(0, ws);
-            active_workspace_idx += 1;
-        }
-
-        let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
-        workspaces.push(ws);
 
         Self {
             output_name: output.name(),
@@ -402,31 +417,19 @@ impl<W: LayoutElement> Monitor<W> {
         self.windows().any(|win| win.id() == window)
     }
 
-    pub fn add_workspace_at(&mut self, idx: usize) {
-        let ws = Workspace::new(
-            self.output.clone(),
-            self.clock.clone(),
-            self.options.clone(),
-        );
-
-        self.workspaces.insert(idx, ws);
-        if idx <= self.active_workspace_idx {
-            self.active_workspace_idx += 1;
-        }
-
-        if let Some(switch) = &mut self.workspace_switch {
-            if idx as f64 <= switch.target_idx() {
-                switch.offset(1);
-            }
-        }
+    /// OSV: No-op - we have fixed 8 workspaces.
+    pub fn add_workspace_at(&mut self, _idx: usize) {
+        // OSV: Fixed 8 workspaces - no dynamic creation
     }
 
+    /// OSV: No-op - we have fixed 8 workspaces.
     pub fn add_workspace_top(&mut self) {
-        self.add_workspace_at(0);
+        // OSV: Fixed 8 workspaces - no dynamic creation
     }
 
+    /// OSV: No-op - we have fixed 8 workspaces.
     pub fn add_workspace_bottom(&mut self) {
-        self.add_workspace_at(self.workspaces.len());
+        // OSV: Fixed 8 workspaces - no dynamic creation
     }
 
     pub fn activate_workspace(&mut self, idx: usize) {
@@ -621,35 +624,9 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
+    /// OSV: No-op - we have fixed 8 workspaces that are never removed.
     pub fn clean_up_workspaces(&mut self) {
-        assert!(self.workspace_switch.is_none());
-
-        let range_start = if self.options.layout.empty_workspace_above_first {
-            1
-        } else {
-            0
-        };
-        for idx in (range_start..self.workspaces.len() - 1).rev() {
-            if self.active_workspace_idx == idx {
-                continue;
-            }
-
-            if !self.workspaces[idx].has_windows_or_name() {
-                self.workspaces.remove(idx);
-                if self.active_workspace_idx > idx {
-                    self.active_workspace_idx -= 1;
-                }
-            }
-        }
-
-        // Special case handling when empty_workspace_above_first is set and all workspaces
-        // are empty.
-        if self.options.layout.empty_workspace_above_first && self.workspaces.len() == 2 {
-            assert!(!self.workspaces[0].has_windows_or_name());
-            assert!(!self.workspaces[1].has_windows_or_name());
-            self.workspaces.remove(1);
-            self.active_workspace_idx = 0;
-        }
+        // OSV: Fixed 8 workspaces - no dynamic removal
     }
 
     pub fn unname_workspace(&mut self, id: WorkspaceId) -> bool {
@@ -2053,9 +2030,12 @@ impl<W: LayoutElement> Monitor<W> {
             Options::clone(&self.base_options).with_merged_layout(self.layout_config.as_ref());
         assert_eq!(&*self.options, &options);
 
-        assert!(
-            !self.workspaces.is_empty(),
-            "monitor must have at least one workspace"
+        // OSV: Must have exactly 8 fixed workspaces
+        assert_eq!(
+            self.workspaces.len(),
+            WORKSPACE_COUNT,
+            "OSV requires exactly {} workspaces",
+            WORKSPACE_COUNT
         );
         assert!(self.active_workspace_idx < self.workspaces.len());
 
@@ -2067,60 +2047,13 @@ impl<W: LayoutElement> Monitor<W> {
             assert!(after_idx < self.workspaces.len());
         }
 
-        assert!(
-            !self.workspaces.last().unwrap().has_windows(),
-            "monitor must have an empty workspace in the end"
-        );
-        if self.options.layout.empty_workspace_above_first {
+        // OSV: All workspaces have names
+        for (idx, ws) in self.workspaces.iter().enumerate() {
             assert!(
-                !self.workspaces.first().unwrap().has_windows(),
-                "first workspace must be empty when empty_workspace_above_first is set"
-            )
-        }
-
-        assert!(
-            self.workspaces.last().unwrap().name.is_none(),
-            "monitor must have an unnamed workspace in the end"
-        );
-        if self.options.layout.empty_workspace_above_first {
-            assert!(
-                self.workspaces.first().unwrap().name.is_none(),
-                "first workspace must be unnamed when empty_workspace_above_first is set"
-            )
-        }
-
-        if self.options.layout.empty_workspace_above_first {
-            assert!(
-                self.workspaces.len() != 2,
-                "if empty_workspace_above_first is set there must be just 1 or 3+ workspaces"
-            )
-        }
-
-        // If there's no workspace switch in progress, there can't be any non-last non-active
-        // empty workspaces. If empty_workspace_above_first is set then the first workspace
-        // will be empty too.
-        let pre_skip = if self.options.layout.empty_workspace_above_first {
-            1
-        } else {
-            0
-        };
-        if self.workspace_switch.is_none() {
-            for (idx, ws) in self
-                .workspaces
-                .iter()
-                .enumerate()
-                .skip(pre_skip)
-                .rev()
-                // skip last
-                .skip(1)
-            {
-                if idx != self.active_workspace_idx {
-                    assert!(
-                        ws.has_windows_or_name(),
-                        "non-active workspace can't be empty and unnamed except the last one"
-                    );
-                }
-            }
+                ws.name.is_some(),
+                "OSV workspace {} must have a name",
+                idx
+            );
         }
 
         for workspace in &self.workspaces {
