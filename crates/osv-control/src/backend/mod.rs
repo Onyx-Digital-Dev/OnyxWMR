@@ -4,6 +4,7 @@
 //! that will be exposed through the Slint UI.
 
 pub mod applets;
+pub mod battery;
 pub mod display;
 pub mod network;
 pub mod power;

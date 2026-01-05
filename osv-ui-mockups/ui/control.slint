@@ -3,7 +3,7 @@
 
 import { OsvTheme } from "theme.slint";
 import { OsvToggle, OsvSlider, OsvCard, OsvProgressBar, OsvDropdown } from "components.slint";
-import { IconGauge, IconMonitor, IconVolume2, IconSpeaker, IconPower, IconZap, IconBluetooth, IconPalette, IconImage, IconInfo, IconUser, IconCpu, IconHardDrive, IconGlobe, IconActivity, IconArrowUp, IconArrowDown, IconRoute, IconWifi, IconShield, IconSun, IconMoon } from "icons.slint";
+import { IconGauge, IconMonitor, IconVolume2, IconSpeaker, IconPower, IconZap, IconBluetooth, IconPalette, IconImage, IconInfo, IconUser, IconCpu, IconHardDrive, IconGlobe, IconActivity, IconArrowUp, IconArrowDown, IconRoute, IconWifi, IconShield, IconSun, IconMoon, IconBattery, IconBatteryCharging, IconClock } from "icons.slint";
 
 // Navigation section item
 component NavItem {
@@ -48,6 +48,8 @@ component NavItem {
                 if icon-type == "wifi": IconWifi { size: OsvTheme.icon-md; icon-color: ic; }
                 if icon-type == "shield": IconShield { size: OsvTheme.icon-md; icon-color: ic; }
                 if icon-type == "user": IconUser { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "battery": IconBattery { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "clock": IconClock { size: OsvTheme.icon-md; icon-color: ic; }
             }
             
             // Label
@@ -223,7 +225,17 @@ export component OsvControl {
     in property <float> brightness: 0.8;
     in property <bool> night-mode: false;
     in property <string> resolution: "1920x1080";
-    
+
+    // Battery data
+    in property <int> battery-percentage: 85;
+    in property <bool> battery-charging: false;
+    in property <string> battery-state: "Discharging";
+    in property <string> battery-time-remaining: "3h 45m";
+    in property <int> battery-health: 92;
+    in property <string> battery-technology: "Li-ion";
+    in property <string> battery-manufacturer: "Unknown";
+    in property <int> battery-cycle-count: 342;
+
     callback section-changed(int);
     callback brightness-changed(float);
     callback night-mode-toggled(bool);
@@ -299,26 +311,33 @@ export component OsvControl {
                         active: active-section == 4;
                         clicked => { section-changed(4); }
                     }
-                    
+
                     NavItem {
-                        label: "Bluetooth";
-                        icon-type: "bluetooth";
+                        label: "Battery";
+                        icon-type: "battery";
                         active: active-section == 5;
                         clicked => { section-changed(5); }
                     }
-                    
+
                     NavItem {
-                        label: "Appearance";
-                        icon-type: "palette";
+                        label: "Bluetooth";
+                        icon-type: "bluetooth";
                         active: active-section == 6;
                         clicked => { section-changed(6); }
                     }
                     
                     NavItem {
-                        label: "About";
-                        icon-type: "info";
+                        label: "Appearance";
+                        icon-type: "palette";
                         active: active-section == 7;
                         clicked => { section-changed(7); }
+                    }
+
+                    NavItem {
+                        label: "About";
+                        icon-type: "info";
+                        active: active-section == 8;
+                        clicked => { section-changed(8); }
                     }
                     
                     // Spacer
@@ -608,31 +627,161 @@ export component OsvControl {
                     Rectangle { vertical-stretch: 1; }
                 }
                 
-                // Placeholder for other sections
-                if (active-section != 0 && active-section != 2): VerticalLayout {
+                // Battery section (Section 5)
+                if active-section == 5: VerticalLayout {
                     padding: OsvTheme.space-md;
-                    
+                    spacing: OsvTheme.space-md;
+
+                    Text {
+                        text: "BATTERY";
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-label;
+                        letter-spacing: 1px;
+                    }
+
+                    // Main battery status card
+                    OsvCard {
+                        title: "STATUS";
+
+                        HorizontalLayout {
+                            spacing: OsvTheme.space-lg;
+
+                            // Battery icon and percentage
+                            VerticalLayout {
+                                spacing: OsvTheme.space-sm;
+                                horizontal-stretch: 0;
+
+                                Rectangle {
+                                    width: 64px;
+                                    height: 64px;
+                                    background: OsvTheme.dark;
+                                    border-radius: OsvTheme.radius-lg;
+
+                                    if battery-charging: IconBatteryCharging {
+                                        x: 16px;
+                                        y: 16px;
+                                        size: 32px;
+                                        icon-color: OsvTheme.success;
+                                    }
+                                    if !battery-charging: IconBattery {
+                                        x: 16px;
+                                        y: 16px;
+                                        size: 32px;
+                                        icon-color: battery-percentage < 20 ? OsvTheme.error :
+                                                    battery-percentage < 50 ? OsvTheme.warning : OsvTheme.accent;
+                                    }
+                                }
+                            }
+
+                            // Battery details
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                spacing: OsvTheme.space-xs;
+
+                                HorizontalLayout {
+                                    Text {
+                                        text: "\{battery-percentage}%";
+                                        color: OsvTheme.bright;
+                                        font-size: 28px;
+                                        font-weight: 600;
+                                    }
+                                    Text {
+                                        text: battery-charging ? " Charging" : " " + battery-state;
+                                        color: OsvTheme.muted;
+                                        font-size: OsvTheme.font-body;
+                                        vertical-alignment: bottom;
+                                    }
+                                }
+
+                                // Progress bar
+                                Rectangle {
+                                    height: 8px;
+                                    border-radius: 4px;
+                                    background: OsvTheme.dark;
+
+                                    Rectangle {
+                                        width: parent.width * (battery-percentage / 100.0);
+                                        height: 100%;
+                                        border-radius: 4px;
+                                        background: battery-percentage < 20 ? OsvTheme.error :
+                                                    battery-percentage < 50 ? OsvTheme.warning :
+                                                    battery-charging ? OsvTheme.success : OsvTheme.accent;
+                                    }
+                                }
+
+                                Text {
+                                    text: battery-charging ? "Time to full: " + battery-time-remaining :
+                                          "Time remaining: " + battery-time-remaining;
+                                    color: OsvTheme.muted;
+                                    font-size: OsvTheme.font-label;
+                                }
+                            }
+                        }
+                    }
+
+                    // Battery health card
+                    OsvCard {
+                        title: "HEALTH";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-sm;
+
+                            HorizontalLayout {
+                                Text { text: "Battery Health"; color: OsvTheme.muted; font-size: OsvTheme.font-body; horizontal-stretch: 1; }
+                                Text {
+                                    text: "\{battery-health}%";
+                                    color: battery-health >= 80 ? OsvTheme.success :
+                                           battery-health >= 50 ? OsvTheme.warning : OsvTheme.error;
+                                    font-size: OsvTheme.font-body;
+                                    font-weight: 600;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                Text { text: "Cycle Count"; color: OsvTheme.muted; font-size: OsvTheme.font-body; horizontal-stretch: 1; }
+                                Text { text: "\{battery-cycle-count}"; color: OsvTheme.text; font-size: OsvTheme.font-body; }
+                            }
+
+                            HorizontalLayout {
+                                Text { text: "Technology"; color: OsvTheme.muted; font-size: OsvTheme.font-body; horizontal-stretch: 1; }
+                                Text { text: battery-technology; color: OsvTheme.text; font-size: OsvTheme.font-body; }
+                            }
+
+                            HorizontalLayout {
+                                Text { text: "Manufacturer"; color: OsvTheme.muted; font-size: OsvTheme.font-body; horizontal-stretch: 1; }
+                                Text { text: battery-manufacturer; color: OsvTheme.text; font-size: OsvTheme.font-body; }
+                            }
+                        }
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+                }
+
+                // Placeholder for other sections
+                if active-section != 0 && active-section != 2 && active-section != 5: VerticalLayout {
+                    padding: OsvTheme.space-md;
+
                     Text {
                         text: active-section == 1 ? "NETWORK" :
                               active-section == 3 ? "SOUND" :
                               active-section == 4 ? "POWER" :
-                              active-section == 5 ? "BLUETOOTH" :
-                              active-section == 6 ? "APPEARANCE" :
+                              active-section == 6 ? "BLUETOOTH" :
+                              active-section == 7 ? "APPEARANCE" :
                               "ABOUT";
                         color: OsvTheme.muted;
                         font-size: OsvTheme.font-label;
                         letter-spacing: 1px;
                     }
-                    
+
                     Rectangle { vertical-stretch: 1; }
-                    
+
                     Text {
                         text: "Settings panel content";
                         color: OsvTheme.muted;
                         font-size: OsvTheme.font-body;
                         horizontal-alignment: center;
                     }
-                    
+
                     Rectangle { vertical-stretch: 1; }
                 }
             }
@@ -657,5 +806,13 @@ export component OsvControlWindow inherits Window {
         brightness: 0.8;
         night-mode: false;
         resolution: "1920x1080";
+        battery-percentage: 72;
+        battery-charging: false;
+        battery-state: "Discharging";
+        battery-time-remaining: "2h 45m";
+        battery-health: 89;
+        battery-technology: "Li-ion";
+        battery-manufacturer: "Samsung SDI";
+        battery-cycle-count: 287;
     }
 }
