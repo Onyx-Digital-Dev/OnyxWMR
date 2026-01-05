@@ -2,9 +2,9 @@
 //!
 //! Parses .desktop files from XDG directories to build an app list.
 
-use freedesktop_entry_parser as desktop;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -87,26 +87,39 @@ impl AppList {
     /// Parse a .desktop file
     fn parse_desktop_file(path: &PathBuf) -> Option<App> {
         let content = fs::read_to_string(path).ok()?;
-        let entry = desktop::parse_entry(&content).ok()?;
 
-        // Get Desktop Entry section
-        let section = entry.section("Desktop Entry")?;
+        // Simple desktop file parser - only parse [Desktop Entry] section
+        let mut in_desktop_entry = false;
+        let mut attrs: HashMap<String, String> = HashMap::new();
+
+        for line in content.lines() {
+            let line = line.trim();
+
+            // Section header
+            if line.starts_with('[') && line.ends_with(']') {
+                in_desktop_entry = line == "[Desktop Entry]";
+                continue;
+            }
+
+            // Key=Value pairs in Desktop Entry section
+            if in_desktop_entry {
+                if let Some((key, value)) = line.split_once('=') {
+                    attrs.insert(key.trim().to_string(), value.trim().to_string());
+                }
+            }
+        }
 
         // Skip if NoDisplay or Hidden
-        if section
-            .attr("NoDisplay")
-            .map(|v| v == "true")
-            .unwrap_or(false)
-        {
+        if attrs.get("NoDisplay").map(|v| v == "true").unwrap_or(false) {
             return None;
         }
-        if section.attr("Hidden").map(|v| v == "true").unwrap_or(false) {
+        if attrs.get("Hidden").map(|v| v == "true").unwrap_or(false) {
             return None;
         }
 
         // Must have Name and Exec
-        let name = section.attr("Name")?.to_string();
-        let exec_raw = section.attr("Exec")?.to_string();
+        let name = attrs.get("Name")?.clone();
+        let exec_raw = attrs.get("Exec")?.clone();
 
         // Clean up Exec (remove %f, %F, %u, %U, etc.)
         let exec = exec_raw
@@ -115,15 +128,15 @@ impl AppList {
             .collect::<Vec<_>>()
             .join(" ");
 
-        let generic_name = section.attr("GenericName").map(String::from);
-        let icon = section.attr("Icon").map(String::from);
-        let terminal = section
-            .attr("Terminal")
+        let generic_name = attrs.get("GenericName").cloned();
+        let icon = attrs.get("Icon").cloned();
+        let terminal = attrs
+            .get("Terminal")
             .map(|v| v == "true")
             .unwrap_or(false);
 
-        let categories = section
-            .attr("Categories")
+        let categories = attrs
+            .get("Categories")
             .map(|s| {
                 s.split(';')
                     .filter(|s| !s.is_empty())
@@ -132,8 +145,8 @@ impl AppList {
             })
             .unwrap_or_default();
 
-        let keywords = section
-            .attr("Keywords")
+        let keywords = attrs
+            .get("Keywords")
             .map(|s| {
                 s.split(';')
                     .filter(|s| !s.is_empty())

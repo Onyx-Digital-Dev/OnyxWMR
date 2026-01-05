@@ -1,0 +1,167 @@
+// osv-bar - Status Bar UI
+// Thin 24px floating bar with OSV color palette
+
+import { HorizontalBox } from "std-widgets.slint";
+
+// ============================================================================
+// OSV COLOR PALETTE
+// ============================================================================
+
+struct OsvColors {
+    black: color,
+    dark: color,
+    surface: color,
+    border: color,
+    muted: color,
+    text: color,
+    bright: color,
+    accent-primary: color,
+}
+
+global OsvPalette {
+    out property <OsvColors> colors: {
+        black: #121216,
+        dark: #1c1c22,
+        surface: #26262e,
+        border: #3a3a44,
+        muted: #80808c,
+        text: #dcdce4,
+        bright: #f8f8fc,
+        accent-primary: #58a6ff,
+    };
+}
+
+// ============================================================================
+// WORKSPACE CAPSULE
+// ============================================================================
+
+component WorkspaceCapsule inherits Rectangle {
+    in property <int> workspace-number;
+    in property <int> window-count;
+    in property <bool> is-active;
+    in property <bool> is-urgent;
+
+    callback clicked();
+
+    width: 28px;
+    height: 16px;
+    border-radius: 8px;
+    background: is-active ? OsvPalette.colors.accent-primary.with-alpha(0.3)
+                : is-urgent ? #ff6b6b.with-alpha(0.3)
+                : window-count > 0 ? OsvPalette.colors.surface
+                : OsvPalette.colors.dark;
+    border-width: is-active ? 1px : 0px;
+    border-color: OsvPalette.colors.accent-primary;
+
+    HorizontalLayout {
+        alignment: center;
+        padding: 0px;
+
+        Text {
+            text: workspace-number;
+            color: is-active ? OsvPalette.colors.bright
+                  : window-count > 0 ? OsvPalette.colors.text
+                  : OsvPalette.colors.muted;
+            font-size: 10px;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// ============================================================================
+// MAIN BAR WINDOW
+// ============================================================================
+
+export component StatusBar inherits Window {
+    // Properties
+    in property <int> active-workspace: 0;
+    in property <[int]> window-counts: [0, 0, 0, 0, 0, 0, 0, 0];
+    in property <[bool]> urgent-workspaces: [false, false, false, false, false, false, false, false];
+    in property <string> current-time: "12:00";
+    in property <string> current-date: "Mon Jan 1";
+
+    // Callbacks
+    callback switch-workspace(int);
+
+    title: "osv-bar";
+    background: transparent;
+    default-font-family: "Inter";
+    default-font-size: 12px;
+
+    // Bar dimensions
+    height: 24px;
+
+    // Main bar container
+    Rectangle {
+        background: @linear-gradient(180deg, #2a2a32 0%, #1c1c22 100%);
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: OsvPalette.colors.border.with-alpha(0.5);
+
+        // Drop shadow simulation
+        drop-shadow-color: #000000.with-alpha(0.4);
+        drop-shadow-blur: 4px;
+        drop-shadow-offset-y: 2px;
+
+        HorizontalLayout {
+            padding-left: 8px;
+            padding-right: 8px;
+            spacing: 4px;
+
+            // Left: Workspace capsules
+            HorizontalLayout {
+                spacing: 4px;
+                alignment: start;
+
+                for i in 8: WorkspaceCapsule {
+                    workspace-number: i + 1;
+                    window-count: window-counts[i];
+                    is-active: active-workspace == i;
+                    is-urgent: urgent-workspaces[i];
+
+                    clicked => { switch-workspace(i); }
+                }
+            }
+
+            // Center: Branding
+            Rectangle {
+                horizontal-stretch: 1;
+
+                Text {
+                    text: "Onyx OSV";
+                    color: OsvPalette.colors.bright;
+                    font-size: 11px;
+                    font-weight: 500;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            // Right: Time and Date
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+
+                Text {
+                    text: current-date;
+                    color: OsvPalette.colors.muted;
+                    font-size: 10px;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: current-time;
+                    color: OsvPalette.colors.text;
+                    font-size: 11px;
+                    font-weight: 500;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

@@ -1,29 +1,23 @@
 //! osv-bar - Minimal status bar for osvwm
 //!
-//! A layer-shell based status bar implementing Phase 2 directives:
-//! - Workspace capsules with window icons (auto-sizing)
+//! A Slint-based status bar implementing Phase 2 directives:
+//! - Workspace capsules with window counts
 //! - "Onyx OSV" centered, time/date right
 //! - Thin (24px), floating, 3D gradient + shadow
 //! - Inter font, clean/professional
 //! - IPC-driven updates from compositor
 
-mod bar;
-mod colors;
 mod ipc;
-mod text;
-mod wayland;
 
 use anyhow::Result;
-use bar::{BarState, BAR_HEIGHT, BAR_MARGIN_TOP, SHADOW_BLUR};
-use std::cell::RefCell;
+use chrono::Local;
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::rc::Rc;
+use std::sync::Arc;
 use tracing::{info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
-/// Total height needed for the layer surface (bar + margin + shadow)
-pub fn total_bar_height() -> u32 {
-    BAR_HEIGHT + BAR_MARGIN_TOP + SHADOW_BLUR as u32 + 2
-}
+slint::include_modules!();
 
 fn main() -> Result<()> {
     // Initialize logging
@@ -33,49 +27,72 @@ fn main() -> Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     info!("osv-bar starting...");
-    info!(
-        "Bar dimensions: {}px height, {}px total with margins/shadow",
-        BAR_HEIGHT,
-        total_bar_height()
-    );
 
-    // Check text rendering
-    if text::is_available() {
-        info!("Text rendering enabled");
-    } else {
-        warn!("Text rendering disabled (no font found)");
-    }
+    // Create the Slint UI
+    let ui = StatusBar::new()?;
 
-    // Create bar state
-    let bar_state = Rc::new(RefCell::new(BarState::default()));
+    // Initialize window counts model
+    let window_counts: Rc<VecModel<i32>> = Rc::new(VecModel::from(vec![0; 8]));
+    ui.set_window_counts(ModelRc::from(window_counts.clone()));
+
+    // Initialize urgent workspaces model
+    let urgent_workspaces: Rc<VecModel<bool>> = Rc::new(VecModel::from(vec![false; 8]));
+    ui.set_urgent_workspaces(ModelRc::from(urgent_workspaces.clone()));
 
     // Try to connect to osvwm IPC
     let ipc_client = match ipc::IpcClient::connect() {
         Ok(client) => {
             info!("Connected to osvwm IPC");
-            Some(client)
+            Some(Arc::new(std::sync::Mutex::new(client)))
         }
         Err(e) => {
             warn!("Failed to connect to osvwm IPC: {}", e);
             warn!("Running in standalone mode with simulated state");
 
             // Simulate some state for testing
-            let mut state = bar_state.borrow_mut();
-            state.set_active(0);
-            state.set_window_count(0, 2);
-            state.set_window_count(1, 1);
-            state.set_window_count(6, 1);
-            drop(state);
+            window_counts.set_row_data(0, 2);
+            window_counts.set_row_data(1, 1);
+            window_counts.set_row_data(6, 1);
 
             None
         }
     };
 
-    // Store IPC client in RefCell for access from Wayland callbacks
-    let ipc_client = Rc::new(RefCell::new(ipc_client));
+    // Handle workspace switch
+    let ipc_for_switch = ipc_client.clone();
+    ui.on_switch_workspace(move |workspace| {
+        info!("Switch to workspace {}", workspace);
+        if let Some(ref client) = ipc_for_switch {
+            if let Ok(mut c) = client.lock() {
+                if let Err(e) = c.switch_workspace(workspace as usize) {
+                    warn!("Failed to switch workspace: {}", e);
+                }
+            }
+        }
+    });
 
-    // Run the Wayland event loop
-    wayland::run_bar(bar_state, ipc_client)?;
+    // Update time periodically
+    let ui_weak = ui.as_weak();
+    let timer = slint::Timer::default();
+    timer.start(
+        slint::TimerMode::Repeated,
+        std::time::Duration::from_secs(1),
+        move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                let now = Local::now();
+                ui.set_current_time(SharedString::from(now.format("%H:%M").to_string()));
+                ui.set_current_date(SharedString::from(now.format("%a %b %d").to_string()));
+            }
+        },
+    );
+
+    // Set initial time
+    let now = Local::now();
+    ui.set_current_time(SharedString::from(now.format("%H:%M").to_string()));
+    ui.set_current_date(SharedString::from(now.format("%a %b %d").to_string()));
+
+    // Run the event loop
+    ui.run()?;
 
     info!("osv-bar exiting");
     Ok(())

@@ -1,98 +1,18 @@
 //! osv-intake - Application launcher for osvwm
 //!
-//! A minimal, keyboard-driven application launcher using layer-shell.
-//! Triggered by Super+Space, provides fuzzy-matching search over .desktop entries.
+//! A minimal, keyboard-driven application launcher using Slint UI.
+//! Triggered by Super+Space, provides command input and app search.
 
 mod apps;
-mod colors;
-mod render;
-mod text;
 
 use anyhow::Result;
 use apps::AppList;
-use std::cell::RefCell;
-use std::rc::Rc;
+use slint::ComponentHandle;
+use std::process::Command;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
-/// Launcher state
-pub struct IntakeState {
-    /// Search query
-    pub query: String,
-    /// List of applications
-    pub apps: AppList,
-    /// Filtered results
-    pub results: Vec<usize>,
-    /// Selected index in results
-    pub selected: usize,
-    /// Whether launcher is visible
-    pub visible: bool,
-}
-
-impl Default for IntakeState {
-    fn default() -> Self {
-        let apps = AppList::load();
-        Self {
-            query: String::new(),
-            apps,
-            results: Vec::new(),
-            selected: 0,
-            visible: true,
-        }
-    }
-}
-
-impl IntakeState {
-    /// Update search results based on query
-    pub fn update_search(&mut self) {
-        self.results = self.apps.search(&self.query);
-        self.selected = 0;
-    }
-
-    /// Move selection up
-    pub fn select_up(&mut self) {
-        if self.selected > 0 {
-            self.selected -= 1;
-        }
-    }
-
-    /// Move selection down
-    pub fn select_down(&mut self) {
-        if !self.results.is_empty() && self.selected < self.results.len() - 1 {
-            self.selected += 1;
-        }
-    }
-
-    /// Get currently selected app
-    pub fn selected_app(&self) -> Option<&apps::App> {
-        self.results
-            .get(self.selected)
-            .and_then(|&idx| self.apps.get(idx))
-    }
-
-    /// Launch selected app
-    pub fn launch_selected(&self) -> Option<String> {
-        self.selected_app().map(|app| app.exec.clone())
-    }
-
-    /// Add character to query
-    pub fn add_char(&mut self, c: char) {
-        self.query.push(c);
-        self.update_search();
-    }
-
-    /// Remove last character from query
-    pub fn backspace(&mut self) {
-        self.query.pop();
-        self.update_search();
-    }
-
-    /// Clear query
-    pub fn clear(&mut self) {
-        self.query.clear();
-        self.update_search();
-    }
-}
+slint::include_modules!();
 
 fn main() -> Result<()> {
     // Initialize logging
@@ -103,38 +23,42 @@ fn main() -> Result<()> {
 
     info!("osv-intake starting...");
 
-    // Create launcher state
-    let state = Rc::new(RefCell::new(IntakeState::default()));
+    // Load applications for searching
+    let apps = AppList::load();
+    info!("Loaded {} applications", apps.len());
 
-    // Log app count
-    {
-        let s = state.borrow();
-        info!("Loaded {} applications", s.apps.len());
-    }
+    // Create the Slint UI
+    let ui = IntakeLauncher::new()?;
 
-    // Initialize with all apps shown
-    state.borrow_mut().update_search();
+    // Handle search changes (for future app matching)
+    let apps_for_search = apps;
+    ui.on_search_changed(move |query| {
+        let results = apps_for_search.search(&query);
+        info!("Search '{}' matched {} apps", query, results.len());
+    });
 
-    // Check text rendering
-    if text::is_available() {
-        info!("Text rendering enabled");
-    } else {
-        tracing::warn!("Text rendering disabled (no font found)");
-    }
-
-    // TODO: Run Wayland layer-shell UI
-    // For now, just print the top results
-    {
-        let s = state.borrow();
-        info!("Top 5 applications:");
-        for (i, &idx) in s.results.iter().take(5).enumerate() {
-            if let Some(app) = s.apps.get(idx) {
-                info!("  {}. {} - {}", i + 1, app.name, app.exec);
+    // Handle command launch
+    ui.on_launch_command(move |command| {
+        let cmd = command.to_string();
+        if !cmd.is_empty() {
+            info!("Launching: {}", cmd);
+            // Spawn the command
+            if let Err(e) = Command::new("sh").arg("-c").arg(&cmd).spawn() {
+                tracing::error!("Failed to launch '{}': {}", cmd, e);
             }
         }
-    }
+        slint::quit_event_loop().ok();
+    });
 
-    info!("osv-intake: Layer-shell UI not yet implemented");
+    // Handle close
+    ui.on_close_launcher(|| {
+        info!("Launcher closed");
+        slint::quit_event_loop().ok();
+    });
+
+    // Run the event loop
+    ui.run()?;
+
     info!("osv-intake exiting");
     Ok(())
 }
