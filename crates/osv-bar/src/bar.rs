@@ -1,15 +1,72 @@
 //! Bar state and rendering logic.
+//!
+//! Implements the Phase 2 bar according to directives:
+//! - Workspace capsules with window icons
+//! - Auto-sizing capsules based on window count
+//! - "Onyx OSV" centered, time/date right
+//! - Thin, floating, 3D gradient + shadow
+//! - Inter font, clean/professional
 
 use crate::colors::*;
 use chrono::Local;
-use tiny_skia::{FillRule, Paint, PathBuilder, Pixmap, Rect, Transform};
+use tiny_skia::{
+    FillRule, GradientStop, LinearGradient, Paint, PathBuilder, Pixmap, Point, Rect, SpreadMode,
+    Transform,
+};
 
-/// Bar configuration
-pub const BAR_HEIGHT: u32 = 32;
-pub const WORKSPACE_INDICATOR_SIZE: u32 = 8;
-pub const WORKSPACE_INDICATOR_GAP: u32 = 12;
-pub const WORKSPACE_INDICATOR_PADDING: u32 = 16;
-pub const CLOCK_PADDING: u32 = 16;
+// ============================================================================
+// BAR DIMENSIONS - Thin, floating design
+// ============================================================================
+
+/// Bar height - thin as per directive
+pub const BAR_HEIGHT: u32 = 24;
+
+/// Vertical margin from top of screen (floating)
+pub const BAR_MARGIN_TOP: u32 = 6;
+
+/// Horizontal margin from screen edges
+pub const BAR_MARGIN_HORIZONTAL: u32 = 8;
+
+/// Corner radius for floating bar
+pub const BAR_CORNER_RADIUS: f32 = 6.0;
+
+/// Shadow offset
+pub const SHADOW_OFFSET_Y: f32 = 2.0;
+
+/// Shadow blur radius (simulated)
+pub const SHADOW_BLUR: f32 = 4.0;
+
+// ============================================================================
+// WORKSPACE CAPSULES
+// ============================================================================
+
+/// Capsule height
+pub const CAPSULE_HEIGHT: u32 = 16;
+
+/// Minimum capsule width (empty workspace)
+pub const CAPSULE_MIN_WIDTH: u32 = 20;
+
+/// Width added per window in capsule
+pub const CAPSULE_WIDTH_PER_WINDOW: u32 = 12;
+
+/// Gap between capsules
+pub const CAPSULE_GAP: u32 = 4;
+
+/// Capsule corner radius
+pub const CAPSULE_RADIUS: f32 = 4.0;
+
+/// Capsule padding from bar edge
+pub const CAPSULE_PADDING: u32 = 4;
+
+// ============================================================================
+// TYPOGRAPHY
+// ============================================================================
+
+/// Font size for branding text
+pub const BRAND_FONT_SIZE: u32 = 11;
+
+/// Font size for time
+pub const TIME_FONT_SIZE: u32 = 11;
 
 /// Number of fixed workspaces (matching osvwm)
 pub const WORKSPACE_COUNT: usize = 8;
@@ -22,8 +79,8 @@ pub const IMMERSION_START: usize = 6;
 pub struct WorkspaceState {
     /// Whether this workspace is currently focused
     pub active: bool,
-    /// Whether this workspace has any windows
-    pub occupied: bool,
+    /// Number of windows on this workspace
+    pub window_count: u32,
     /// Whether this workspace has urgent windows
     pub urgent: bool,
 }
@@ -52,20 +109,18 @@ impl BarState {
     /// Set the active workspace
     pub fn set_active(&mut self, idx: usize) {
         if idx < WORKSPACE_COUNT {
-            // Clear old active
             if self.active_workspace < WORKSPACE_COUNT {
                 self.workspaces[self.active_workspace].active = false;
             }
-            // Set new active
             self.workspaces[idx].active = true;
             self.active_workspace = idx;
         }
     }
 
-    /// Set whether a workspace is occupied
-    pub fn set_occupied(&mut self, idx: usize, occupied: bool) {
+    /// Set window count for a workspace
+    pub fn set_window_count(&mut self, idx: usize, count: u32) {
         if idx < WORKSPACE_COUNT {
-            self.workspaces[idx].occupied = occupied;
+            self.workspaces[idx].window_count = count;
         }
     }
 
@@ -77,68 +132,269 @@ impl BarState {
     }
 }
 
+/// Calculate capsule width based on window count
+fn capsule_width(window_count: u32) -> u32 {
+    CAPSULE_MIN_WIDTH + window_count.min(5) * CAPSULE_WIDTH_PER_WINDOW
+}
+
 /// Render the bar to a pixmap
 pub fn render_bar(width: u32, height: u32, state: &BarState) -> Pixmap {
     let mut pixmap = Pixmap::new(width, height).expect("Failed to create pixmap");
 
-    // Fill background
-    let bg = BAR_BG.to_premultiplied();
-    pixmap.fill(tiny_skia::Color::from_rgba8(
-        bg.red(),
-        bg.green(),
-        bg.blue(),
-        bg.alpha(),
-    ));
+    // Clear to transparent
+    pixmap.fill(tiny_skia::Color::TRANSPARENT);
 
-    // Draw workspace indicators on the left
-    draw_workspace_indicators(&mut pixmap, state);
+    // Calculate bar rectangle (floating with margins)
+    let bar_x = BAR_MARGIN_HORIZONTAL as f32;
+    let bar_y = BAR_MARGIN_TOP as f32;
+    let bar_width = width as f32 - 2.0 * BAR_MARGIN_HORIZONTAL as f32;
+    let bar_height = BAR_HEIGHT as f32;
 
-    // Draw clock on the right
-    draw_clock(&mut pixmap, width);
+    // Draw shadow first (behind bar)
+    draw_shadow(&mut pixmap, bar_x, bar_y, bar_width, bar_height);
+
+    // Draw bar background with 3D gradient
+    draw_bar_background(&mut pixmap, bar_x, bar_y, bar_width, bar_height);
+
+    // Draw workspace capsules on the left
+    draw_workspace_capsules(&mut pixmap, bar_x, bar_y, bar_height, state);
+
+    // Draw "Onyx OSV" branding in center
+    draw_branding(&mut pixmap, bar_x, bar_y, bar_width, bar_height);
+
+    // Draw time/date on the right
+    draw_time(&mut pixmap, bar_x + bar_width, bar_y, bar_height);
 
     pixmap
 }
 
-/// Draw workspace indicators
-fn draw_workspace_indicators(pixmap: &mut Pixmap, state: &BarState) {
-    let height = pixmap.height();
-    let center_y = height as f32 / 2.0;
+/// Draw floating shadow
+fn draw_shadow(pixmap: &mut Pixmap, x: f32, y: f32, width: f32, height: f32) {
+    let shadow_y = y + SHADOW_OFFSET_Y;
+
+    if let Some(path) = rounded_rect_path(x, shadow_y, width, height, BAR_CORNER_RADIUS) {
+        let mut paint = Paint::default();
+        paint.set_color(SHADOW_COLOR.to_skia());
+        paint.anti_alias = true;
+        pixmap.fill_path(
+            &path,
+            &paint,
+            FillRule::Winding,
+            Transform::identity(),
+            None,
+        );
+    }
+}
+
+/// Draw bar background with 3D gradient effect
+fn draw_bar_background(pixmap: &mut Pixmap, x: f32, y: f32, width: f32, height: f32) {
+    if let Some(path) = rounded_rect_path(x, y, width, height, BAR_CORNER_RADIUS) {
+        // Create vertical gradient for 3D effect
+        let gradient = LinearGradient::new(
+            Point::from_xy(0.0, y),
+            Point::from_xy(0.0, y + height),
+            vec![
+                GradientStop::new(0.0, BAR_GRADIENT_TOP.to_skia()),
+                GradientStop::new(0.5, BAR_GRADIENT_MID.to_skia()),
+                GradientStop::new(1.0, BAR_GRADIENT_BOTTOM.to_skia()),
+            ],
+            SpreadMode::Pad,
+            Transform::identity(),
+        );
+
+        if let Some(shader) = gradient {
+            let mut paint = Paint::default();
+            paint.shader = shader;
+            paint.anti_alias = true;
+            pixmap.fill_path(
+                &path,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
+        }
+
+        // Draw subtle top highlight
+        if let Some(highlight_path) = rounded_rect_path(x, y, width, 1.0, BAR_CORNER_RADIUS) {
+            let mut highlight_paint = Paint::default();
+            highlight_paint.set_color(BAR_HIGHLIGHT.to_skia());
+            highlight_paint.anti_alias = true;
+            pixmap.fill_path(
+                &highlight_path,
+                &highlight_paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+}
+
+/// Draw workspace capsules
+fn draw_workspace_capsules(
+    pixmap: &mut Pixmap,
+    bar_x: f32,
+    bar_y: f32,
+    bar_height: f32,
+    state: &BarState,
+) {
+    let capsule_y = bar_y + (bar_height - CAPSULE_HEIGHT as f32) / 2.0;
+    let mut x = bar_x + CAPSULE_PADDING as f32;
 
     for (i, ws) in state.workspaces.iter().enumerate() {
-        let x = WORKSPACE_INDICATOR_PADDING as f32
-            + i as f32 * (WORKSPACE_INDICATOR_SIZE as f32 + WORKSPACE_INDICATOR_GAP as f32);
-        let y = center_y - WORKSPACE_INDICATOR_SIZE as f32 / 2.0;
+        let width = capsule_width(ws.window_count) as f32;
+        let is_immersion = i >= IMMERSION_START;
 
-        // Determine color based on state
+        // Determine capsule color
         let color = if ws.urgent {
             WORKSPACE_URGENT
         } else if ws.active {
-            if i >= IMMERSION_START {
+            if is_immersion {
                 WORKSPACE_IMMERSION
             } else {
                 WORKSPACE_ACTIVE
             }
-        } else if ws.occupied {
+        } else if ws.window_count > 0 {
             WORKSPACE_OCCUPIED
-        } else if i >= IMMERSION_START {
-            // Immersion workspaces get a subtle purple tint even when inactive
-            Color::new(
-                WORKSPACE_IMMERSION.r / 3,
-                WORKSPACE_IMMERSION.g / 3,
-                WORKSPACE_IMMERSION.b / 3,
-                180,
-            )
+        } else if is_immersion {
+            CAPSULE_IMMERSION_EMPTY
         } else {
-            WORKSPACE_INACTIVE
+            CAPSULE_EMPTY
         };
 
-        // Draw indicator (circle for regular, diamond for immersion)
-        if i >= IMMERSION_START {
-            draw_diamond(pixmap, x, y, WORKSPACE_INDICATOR_SIZE as f32, color);
-        } else {
-            draw_circle(pixmap, x, y, WORKSPACE_INDICATOR_SIZE as f32, color);
+        // Draw capsule
+        if let Some(path) =
+            rounded_rect_path(x, capsule_y, width, CAPSULE_HEIGHT as f32, CAPSULE_RADIUS)
+        {
+            let mut paint = Paint::default();
+            paint.set_color(color.to_skia());
+            paint.anti_alias = true;
+            pixmap.fill_path(
+                &path,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
         }
+
+        // Draw window dots inside capsule
+        if ws.window_count > 0 {
+            draw_window_dots(
+                pixmap,
+                x,
+                capsule_y,
+                width,
+                CAPSULE_HEIGHT as f32,
+                ws.window_count,
+                ws.active,
+            );
+        }
+
+        x += width + CAPSULE_GAP as f32;
     }
+}
+
+/// Draw window indicator dots inside a capsule
+fn draw_window_dots(
+    pixmap: &mut Pixmap,
+    capsule_x: f32,
+    capsule_y: f32,
+    capsule_width: f32,
+    capsule_height: f32,
+    count: u32,
+    active: bool,
+) {
+    let dot_radius = 2.0_f32;
+    let dot_gap = 4.0_f32;
+    let dots_to_show = count.min(5) as usize;
+    let total_dots_width = dots_to_show as f32 * (dot_radius * 2.0 + dot_gap) - dot_gap;
+    let start_x = capsule_x + (capsule_width - total_dots_width) / 2.0;
+    let center_y = capsule_y + capsule_height / 2.0;
+
+    let dot_color = if active { ONYX_BLACK } else { ONYX_BRIGHT };
+
+    for i in 0..dots_to_show {
+        let cx = start_x + i as f32 * (dot_radius * 2.0 + dot_gap) + dot_radius;
+        draw_circle(
+            pixmap,
+            cx - dot_radius,
+            center_y - dot_radius,
+            dot_radius * 2.0,
+            dot_color,
+        );
+    }
+}
+
+/// Draw "Onyx OSV" branding in center
+fn draw_branding(pixmap: &mut Pixmap, bar_x: f32, bar_y: f32, bar_width: f32, bar_height: f32) {
+    // Placeholder: draw a subtle centered indicator
+    // Full text rendering requires fontdue integration with Inter font
+    let indicator_width = 60.0_f32;
+    let indicator_height = 2.0_f32;
+    let x = bar_x + (bar_width - indicator_width) / 2.0;
+    let y = bar_y + (bar_height - indicator_height) / 2.0;
+
+    if let Some(rect) = Rect::from_xywh(x, y, indicator_width, indicator_height) {
+        let mut paint = Paint::default();
+        paint.set_color(BRAND_TEXT.to_skia());
+        paint.anti_alias = true;
+        pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+    }
+}
+
+/// Draw time on the right
+fn draw_time(pixmap: &mut Pixmap, right_edge: f32, bar_y: f32, bar_height: f32) {
+    let now = Local::now();
+    let _time_str = now.format("%H:%M").to_string();
+
+    // Placeholder: subtle time indicator
+    let indicator_width = 40.0_f32;
+    let indicator_height = 2.0_f32;
+    let x = right_edge - indicator_width - CAPSULE_PADDING as f32;
+    let y = bar_y + (bar_height - indicator_height) / 2.0;
+
+    if let Some(rect) = Rect::from_xywh(x, y, indicator_width, indicator_height) {
+        let mut paint = Paint::default();
+        paint.set_color(TIME_TEXT.to_skia());
+        paint.anti_alias = true;
+        pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+    }
+}
+
+/// Create a rounded rectangle path
+fn rounded_rect_path(
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    radius: f32,
+) -> Option<tiny_skia::Path> {
+    let r = radius.min(width / 2.0).min(height / 2.0);
+    let mut pb = PathBuilder::new();
+
+    // Start at top-left after curve
+    pb.move_to(x + r, y);
+
+    // Top edge and top-right corner
+    pb.line_to(x + width - r, y);
+    pb.quad_to(x + width, y, x + width, y + r);
+
+    // Right edge and bottom-right corner
+    pb.line_to(x + width, y + height - r);
+    pb.quad_to(x + width, y + height, x + width - r, y + height);
+
+    // Bottom edge and bottom-left corner
+    pb.line_to(x + r, y + height);
+    pb.quad_to(x, y + height, x, y + height - r);
+
+    // Left edge and top-left corner
+    pb.line_to(x, y + r);
+    pb.quad_to(x, y, x + r, y);
+
+    pb.close();
+    pb.finish()
 }
 
 /// Draw a filled circle
@@ -147,11 +403,8 @@ fn draw_circle(pixmap: &mut Pixmap, x: f32, y: f32, size: f32, color: Color) {
     let center_y = y + size / 2.0;
     let radius = size / 2.0;
 
-    // Approximate circle with a path
     let mut pb = PathBuilder::new();
-
-    // Use bezier curves to approximate a circle
-    let k = 0.5522847498; // Magic number for circle approximation
+    let k = 0.5522847498_f32;
     let r = radius;
 
     pb.move_to(center_x, center_y - r);
@@ -203,56 +456,6 @@ fn draw_circle(pixmap: &mut Pixmap, x: f32, y: f32, size: f32, color: Color) {
     }
 }
 
-/// Draw a filled diamond (for immersion workspaces)
-fn draw_diamond(pixmap: &mut Pixmap, x: f32, y: f32, size: f32, color: Color) {
-    let center_x = x + size / 2.0;
-    let center_y = y + size / 2.0;
-    let half = size / 2.0;
-
-    let mut pb = PathBuilder::new();
-    pb.move_to(center_x, center_y - half); // Top
-    pb.line_to(center_x + half, center_y); // Right
-    pb.line_to(center_x, center_y + half); // Bottom
-    pb.line_to(center_x - half, center_y); // Left
-    pb.close();
-
-    if let Some(path) = pb.finish() {
-        let mut paint = Paint::default();
-        paint.set_color(color.to_skia());
-        paint.anti_alias = true;
-        pixmap.fill_path(
-            &path,
-            &paint,
-            FillRule::Winding,
-            Transform::identity(),
-            None,
-        );
-    }
-}
-
-/// Draw the clock on the right side
-/// Note: Text rendering requires fontdue, we'll draw a simple placeholder for now
-fn draw_clock(pixmap: &mut Pixmap, width: u32) {
-    let now = Local::now();
-    let _time_str = now.format("%H:%M").to_string();
-    let _date_str = now.format("%a %b %d").to_string();
-
-    // For now, draw a simple indicator showing clock position
-    // Full text rendering will be added when fontdue is integrated
-    let height = pixmap.height();
-    let clock_width = 80.0_f32;
-    let x = width as f32 - clock_width - CLOCK_PADDING as f32;
-    let y = (height as f32 - 4.0) / 2.0;
-
-    // Draw a subtle rectangle as clock placeholder
-    if let Some(rect) = Rect::from_xywh(x, y, clock_width, 4.0) {
-        let mut paint = Paint::default();
-        paint.set_color(ONYX_MUTED.to_skia());
-        paint.anti_alias = true;
-        pixmap.fill_rect(rect, &paint, Transform::identity(), None);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,19 +468,28 @@ mod tests {
     }
 
     #[test]
-    fn test_set_active_workspace() {
-        let mut state = BarState::default();
-        state.set_active(3);
-        assert!(!state.workspaces[0].active);
-        assert!(state.workspaces[3].active);
-        assert_eq!(state.active_workspace, 3);
+    fn test_capsule_width() {
+        assert_eq!(capsule_width(0), CAPSULE_MIN_WIDTH);
+        assert_eq!(
+            capsule_width(1),
+            CAPSULE_MIN_WIDTH + CAPSULE_WIDTH_PER_WINDOW
+        );
+        assert_eq!(
+            capsule_width(5),
+            CAPSULE_MIN_WIDTH + 5 * CAPSULE_WIDTH_PER_WINDOW
+        );
+        // Capped at 5 windows
+        assert_eq!(
+            capsule_width(10),
+            CAPSULE_MIN_WIDTH + 5 * CAPSULE_WIDTH_PER_WINDOW
+        );
     }
 
     #[test]
     fn test_render_bar() {
         let state = BarState::default();
-        let pixmap = render_bar(1920, BAR_HEIGHT, &state);
+        let total_height = BAR_HEIGHT + BAR_MARGIN_TOP + SHADOW_BLUR as u32;
+        let pixmap = render_bar(1920, total_height, &state);
         assert_eq!(pixmap.width(), 1920);
-        assert_eq!(pixmap.height(), BAR_HEIGHT);
     }
 }

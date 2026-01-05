@@ -27,7 +27,8 @@ use wayland_client::{
     Connection, QueueHandle,
 };
 
-use crate::bar::{render_bar, BarState, BAR_HEIGHT};
+use crate::bar::{render_bar, BarState, BAR_HEIGHT, BAR_MARGIN_TOP};
+use crate::total_bar_height;
 
 /// Wayland client state
 pub struct WaylandState {
@@ -67,7 +68,7 @@ impl WaylandState {
             pool: None,
             buffer: None,
             width: 0,
-            height: BAR_HEIGHT,
+            height: total_bar_height(),
             configured: false,
             running: true,
             bar_state,
@@ -86,9 +87,14 @@ impl WaylandState {
         );
 
         // Configure the layer surface
+        // Floating bar: anchor top, use full height for surface (includes margins/shadow)
+        let surface_height = total_bar_height();
+        // Exclusive zone: just the bar + top margin (not including shadow that goes down)
+        let exclusive = (BAR_HEIGHT + BAR_MARGIN_TOP) as i32;
+
         layer_surface.set_anchor(Anchor::TOP | Anchor::LEFT | Anchor::RIGHT);
-        layer_surface.set_size(0, BAR_HEIGHT); // Width auto-fills
-        layer_surface.set_exclusive_zone(BAR_HEIGHT as i32);
+        layer_surface.set_size(0, surface_height); // Width auto-fills
+        layer_surface.set_exclusive_zone(exclusive);
         layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
 
         layer_surface.commit();
@@ -252,7 +258,7 @@ impl LayerShellHandler for WaylandState {
         _serial: u32,
     ) {
         self.width = configure.new_size.0;
-        self.height = configure.new_size.1.max(BAR_HEIGHT);
+        self.height = configure.new_size.1.max(total_bar_height());
 
         // Create pool if needed
         if self.pool.is_none() {

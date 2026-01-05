@@ -39,16 +39,16 @@ impl Color {
 }
 
 // ============================================================================
-// OSV COLOR PALETTE
+// OSV BASE COLORS
 // ============================================================================
 
-/// Deep black background - main compositor/bar background
+/// Deep black - darkest background
 pub const ONYX_BLACK: Color = Color::rgb(18, 18, 22);
 
-/// Slightly lighter black for contrast elements
+/// Slightly lighter black for contrast
 pub const ONYX_DARK: Color = Color::rgb(28, 28, 34);
 
-/// Surface color for panels and cards
+/// Surface color for panels
 pub const ONYX_SURFACE: Color = Color::rgb(38, 38, 46);
 
 /// Border/separator color
@@ -63,7 +63,9 @@ pub const ONYX_TEXT: Color = Color::rgb(220, 220, 228);
 /// Bright text/highlight
 pub const ONYX_BRIGHT: Color = Color::rgb(248, 248, 252);
 
-// Accent colors
+// ============================================================================
+// ACCENT COLORS
+// ============================================================================
 
 /// Primary accent - vibrant blue
 pub const ACCENT_PRIMARY: Color = Color::rgb(88, 166, 255);
@@ -84,31 +86,60 @@ pub const ACCENT_ERROR: Color = Color::rgb(255, 99, 99);
 pub const ACCENT_IMMERSION: Color = Color::rgb(178, 102, 255);
 
 // ============================================================================
-// BAR-SPECIFIC COLORS
+// BAR FLOATING DESIGN - 3D Gradient + Shadow
 // ============================================================================
 
-/// Bar background color (semi-transparent black)
-pub const BAR_BG: Color = Color::new(18, 18, 22, 230);
+/// Bar gradient top (lighter for 3D effect)
+pub const BAR_GRADIENT_TOP: Color = Color::new(48, 48, 56, 245);
 
-/// Workspace indicator - inactive
+/// Bar gradient middle
+pub const BAR_GRADIENT_MID: Color = Color::new(32, 32, 40, 245);
+
+/// Bar gradient bottom (darker for 3D effect)
+pub const BAR_GRADIENT_BOTTOM: Color = Color::new(22, 22, 28, 245);
+
+/// Bar top highlight (subtle shine)
+pub const BAR_HIGHLIGHT: Color = Color::new(255, 255, 255, 15);
+
+/// Floating shadow color
+pub const SHADOW_COLOR: Color = Color::new(0, 0, 0, 80);
+
+// ============================================================================
+// WORKSPACE CAPSULES
+// ============================================================================
+
+/// Capsule - empty regular workspace
+pub const CAPSULE_EMPTY: Color = Color::new(60, 60, 70, 180);
+
+/// Capsule - empty immersion workspace (subtle purple tint)
+pub const CAPSULE_IMMERSION_EMPTY: Color = Color::new(70, 50, 90, 180);
+
+/// Workspace capsule - inactive with windows
 pub const WORKSPACE_INACTIVE: Color = ONYX_MUTED;
 
-/// Workspace indicator - active
+/// Workspace capsule - active
 pub const WORKSPACE_ACTIVE: Color = ACCENT_PRIMARY;
 
-/// Workspace indicator - has windows
+/// Workspace capsule - has windows (not active)
 pub const WORKSPACE_OCCUPIED: Color = ONYX_TEXT;
 
-/// Workspace indicator - immersion (7-8)
+/// Workspace capsule - immersion active
 pub const WORKSPACE_IMMERSION: Color = ACCENT_IMMERSION;
 
-/// Workspace indicator - urgent
+/// Workspace capsule - urgent
 pub const WORKSPACE_URGENT: Color = ACCENT_ERROR;
 
-/// Clock text color
-pub const CLOCK_TEXT: Color = ONYX_TEXT;
+// ============================================================================
+// TYPOGRAPHY COLORS
+// ============================================================================
 
-/// Date text color (slightly muted)
+/// "Onyx OSV" branding text
+pub const BRAND_TEXT: Color = Color::new(180, 180, 190, 200);
+
+/// Time display text
+pub const TIME_TEXT: Color = ONYX_TEXT;
+
+/// Date display text (slightly muted)
 pub const DATE_TEXT: Color = ONYX_MUTED;
 
 #[cfg(test)]
@@ -129,7 +160,13 @@ mod tests {
     fn test_premultiplied() {
         let c = Color::new(200, 100, 50, 128);
         let pre = c.to_premultiplied();
-        // Premultiplied: r * a / 255
         assert_eq!(pre.alpha(), 128);
+    }
+
+    #[test]
+    fn test_bar_gradient_has_transparency() {
+        assert!(BAR_GRADIENT_TOP.a < 255);
+        assert!(BAR_GRADIENT_MID.a < 255);
+        assert!(BAR_GRADIENT_BOTTOM.a < 255);
     }
 }
