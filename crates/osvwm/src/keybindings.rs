@@ -49,6 +49,9 @@ pub enum Action {
     MoveWindowToWorkspaceDown,
     /// Move window to workspace above (Super+Shift+K)
     MoveWindowToWorkspaceUp,
+    /// Send window to immersion workspace 7 or 8 (Super+I)
+    /// If both immersion workspaces have windows, shows a popup warning.
+    SendToImmersion,
     /// Cycle window size 1u→2u→3u→1u (Super+R)
     CycleWindowSize,
     /// Toggle Frame/fullscreen mode (Super+F)
@@ -69,24 +72,26 @@ pub enum Action {
 
 impl Action {
     /// Convert to osvwm_config::Action for the compositor to execute.
-    pub fn to_config_action(self) -> ConfigAction {
+    /// Returns None for actions that require special handling (e.g., SendToImmersion).
+    pub fn to_config_action(self) -> Option<ConfigAction> {
         match self {
-            Action::WorkspaceUp => ConfigAction::FocusWorkspaceUp,
-            Action::WorkspaceDown => ConfigAction::FocusWorkspaceDown,
-            Action::FocusLeft => ConfigAction::FocusColumnLeft,
-            Action::FocusRight => ConfigAction::FocusColumnRight,
-            Action::MoveWindowLeft => ConfigAction::MoveColumnLeft,
-            Action::MoveWindowRight => ConfigAction::MoveColumnRight,
-            Action::MoveWindowToWorkspaceDown => ConfigAction::MoveWindowToWorkspaceDown(true),
-            Action::MoveWindowToWorkspaceUp => ConfigAction::MoveWindowToWorkspaceUp(true),
-            Action::CycleWindowSize => ConfigAction::SwitchPresetWindowWidth,
-            Action::ToggleFrame => ConfigAction::FullscreenWindow,
-            Action::ToggleFloating => ConfigAction::ToggleWindowFloating,
-            Action::OpenOverview => ConfigAction::OpenOverview,
-            Action::LaunchIntake => ConfigAction::Spawn(vec![LAUNCHER_COMMAND.to_string()]),
-            Action::LaunchTerminal => ConfigAction::Spawn(vec![TERMINAL_COMMAND.to_string()]),
-            Action::CloseWindow => ConfigAction::CloseWindow,
-            Action::ExitCompositor => ConfigAction::Quit(false),
+            Action::WorkspaceUp => Some(ConfigAction::FocusWorkspaceUp),
+            Action::WorkspaceDown => Some(ConfigAction::FocusWorkspaceDown),
+            Action::FocusLeft => Some(ConfigAction::FocusColumnLeft),
+            Action::FocusRight => Some(ConfigAction::FocusColumnRight),
+            Action::MoveWindowLeft => Some(ConfigAction::MoveColumnLeft),
+            Action::MoveWindowRight => Some(ConfigAction::MoveColumnRight),
+            Action::MoveWindowToWorkspaceDown => Some(ConfigAction::MoveWindowToWorkspaceDown(true)),
+            Action::MoveWindowToWorkspaceUp => Some(ConfigAction::MoveWindowToWorkspaceUp(true)),
+            Action::SendToImmersion => Some(ConfigAction::SendToImmersion),
+            Action::CycleWindowSize => Some(ConfigAction::SwitchPresetWindowWidth),
+            Action::ToggleFrame => Some(ConfigAction::FullscreenWindow),
+            Action::ToggleFloating => Some(ConfigAction::ToggleWindowFloating),
+            Action::OpenOverview => Some(ConfigAction::OpenOverview),
+            Action::LaunchIntake => Some(ConfigAction::Spawn(vec![LAUNCHER_COMMAND.to_string()])),
+            Action::LaunchTerminal => Some(ConfigAction::Spawn(vec![TERMINAL_COMMAND.to_string()])),
+            Action::CloseWindow => Some(ConfigAction::CloseWindow),
+            Action::ExitCompositor => Some(ConfigAction::Quit(false)),
         }
     }
 }
@@ -119,6 +124,9 @@ pub fn match_keybinding(modifiers: &ModifiersState, keysym: Keysym) -> Option<Ac
 
             // Window management
             Keysym::q | Keysym::Q => return Some(Action::CloseWindow),
+
+            // Immersion
+            Keysym::i | Keysym::I => return Some(Action::SendToImmersion),
 
             _ => {}
         }
@@ -215,5 +223,13 @@ mod tests {
     #[test]
     fn test_exit() {
         assert_eq!(match_keybinding(&super_shift(), Keysym::Escape), Some(Action::ExitCompositor));
+    }
+
+    #[test]
+    fn test_send_to_immersion() {
+        assert_eq!(match_keybinding(&super_only(), Keysym::i), Some(Action::SendToImmersion));
+        assert_eq!(match_keybinding(&super_only(), Keysym::I), Some(Action::SendToImmersion));
+        // Verify it maps to the config action
+        assert!(Action::SendToImmersion.to_config_action().is_some());
     }
 }

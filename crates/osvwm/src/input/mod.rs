@@ -2377,6 +2377,55 @@ impl State {
                     self.osvwm.queue_redraw_mru_output();
                 }
             }
+            Action::SendToImmersion => {
+                // OSV: Send focused window to immersion workspace 7 or 8.
+                // Workspace 7 = index 6, Workspace 8 = index 7 (0-indexed)
+                const IMMERSION_WS_7: usize = 6;
+                const IMMERSION_WS_8: usize = 7;
+
+                // Check if there's a focused window to move
+                if self.osvwm.layout.focus().is_none() {
+                    return;
+                }
+
+                // Check immersion workspace occupancy
+                let mut ws7_has_windows = false;
+                let mut ws8_has_windows = false;
+
+                for (_, idx, ws) in self.osvwm.layout.workspaces() {
+                    if idx == IMMERSION_WS_7 {
+                        ws7_has_windows = ws.has_windows();
+                    } else if idx == IMMERSION_WS_8 {
+                        ws8_has_windows = ws.has_windows();
+                    }
+                }
+
+                // Determine target workspace
+                let target_idx = if !ws7_has_windows {
+                    Some(IMMERSION_WS_7)
+                } else if !ws8_has_windows {
+                    Some(IMMERSION_WS_8)
+                } else {
+                    None // Both full
+                };
+
+                if let Some(idx) = target_idx {
+                    // Move window to immersion workspace, follow focus
+                    self.osvwm
+                        .layout
+                        .move_to_workspace(None, idx, ActivateWindow::Smart);
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.osvwm.queue_redraw_all();
+                } else {
+                    // Both immersion workspaces are full - show warning
+                    // TODO: Show popup warning via osv-notify or similar
+                    warn!(
+                        "Cannot send to immersion: both immersion workspaces (7 and 8) are occupied. \
+                         Move an immersion window to a Focus workspace, or close an immersion window."
+                    );
+                }
+            }
         }
     }
 
@@ -4421,28 +4470,10 @@ fn find_bind<'a>(
     // OSV: Handle hardcoded keybindings (Super+key combinations).
     // These take priority over any configured bindings.
     if let Some(osv_action) = keybindings::match_keybinding(&mods, modified) {
-        let action = osv_action.to_config_action();
-        return Some(Bind {
-            key: Key {
-                trigger: Trigger::Keysym(modified),
-                modifiers: Modifiers::COMPOSITOR,
-            },
-            action,
-            repeat: true,
-            cooldown: None,
-            allow_when_locked: false,
-            allow_inhibiting: false,
-            hotkey_overlay_title: None,
-        });
-    }
-
-    // Also check with raw keysym for OSV bindings
-    if let Some(raw_sym) = raw {
-        if let Some(osv_action) = keybindings::match_keybinding(&mods, raw_sym) {
-            let action = osv_action.to_config_action();
+        if let Some(action) = osv_action.to_config_action() {
             return Some(Bind {
                 key: Key {
-                    trigger: Trigger::Keysym(raw_sym),
+                    trigger: Trigger::Keysym(modified),
                     modifiers: Modifiers::COMPOSITOR,
                 },
                 action,
@@ -4452,6 +4483,26 @@ fn find_bind<'a>(
                 allow_inhibiting: false,
                 hotkey_overlay_title: None,
             });
+        }
+    }
+
+    // Also check with raw keysym for OSV bindings
+    if let Some(raw_sym) = raw {
+        if let Some(osv_action) = keybindings::match_keybinding(&mods, raw_sym) {
+            if let Some(action) = osv_action.to_config_action() {
+                return Some(Bind {
+                    key: Key {
+                        trigger: Trigger::Keysym(raw_sym),
+                        modifiers: Modifiers::COMPOSITOR,
+                    },
+                    action,
+                    repeat: true,
+                    cooldown: None,
+                    allow_when_locked: false,
+                    allow_inhibiting: false,
+                    hotkey_overlay_title: None,
+                });
+            }
         }
     }
 

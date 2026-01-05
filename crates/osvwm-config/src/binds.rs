@@ -385,6 +385,20 @@ pub enum Action {
     MruSetScope(MruScope),
     #[knuffel(skip)]
     MruCycleScope,
+    /// OSV: Send window to immersion workspace (7 or 8).
+    /// If one is populated, send to the other. If both full, show warning popup.
+    #[knuffel(skip)]
+    SendToImmersion,
+    /// OSV: Set the wallpaper image.
+    #[knuffel(skip)]
+    SetWallpaper {
+        path: String,
+        mode: osv_ipc::WallpaperMode,
+        output: Option<String>,
+    },
+    /// OSV: Clear the wallpaper (revert to solid color background).
+    #[knuffel(skip)]
+    ClearWallpaper { output: Option<String> },
 }
 
 impl From<osv_ipc::Action> for Action {
@@ -692,6 +706,12 @@ impl From<osv_ipc::Action> for Action {
             osv_ipc::Action::SetWindowUrgent { id } => Self::SetWindowUrgent(id),
             osv_ipc::Action::UnsetWindowUrgent { id } => Self::UnsetWindowUrgent(id),
             osv_ipc::Action::LoadConfigFile {} => Self::LoadConfigFile,
+            osv_ipc::Action::SetWallpaper { path, mode, output } => Self::SetWallpaper {
+                path,
+                mode,
+                output,
+            },
+            osv_ipc::Action::ClearWallpaper { output } => Self::ClearWallpaper { output },
         }
     }
 }
