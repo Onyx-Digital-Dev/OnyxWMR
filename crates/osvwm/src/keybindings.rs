@@ -59,7 +59,7 @@ pub enum Action {
     OpenOverview,
     /// Launch osv-intake launcher (Super+Space)
     LaunchIntake,
-    /// Launch terminal - alacritty (Super+Return)
+    /// Launch terminal - ghostty (Super+Return)
     LaunchTerminal,
     /// Close focused window (Super+Q)
     CloseWindow,
@@ -146,7 +146,7 @@ pub fn match_keybinding(modifiers: &ModifiersState, keysym: Keysym) -> Option<Ac
 }
 
 /// Terminal command to spawn.
-pub const TERMINAL_COMMAND: &str = "alacritty";
+pub const TERMINAL_COMMAND: &str = "ghostty";
 
 /// Launcher command to spawn (osv-intake).
 pub const LAUNCHER_COMMAND: &str = "osv-intake";

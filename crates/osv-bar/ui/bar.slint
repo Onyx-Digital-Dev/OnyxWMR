@@ -8,19 +8,22 @@ import { HorizontalBox } from "std-widgets.slint";
 // ============================================================================
 
 global OsvPalette {
-    // Bar colors
-    out property <color> bar-bg-top: #3a3a44;
-    out property <color> bar-bg-bottom: #26262e;
-    out property <color> bar-border: #4a4a55;
+    // OSV Primary
+    out property <color> osv-bg: #0E213D;
+
+    // Bar colors (derived from osv-bg)
+    out property <color> bar-bg-top: #1a3356;
+    out property <color> bar-bg-bottom: #0E213D;
+    out property <color> bar-border: #2a4a6e;
 
     // Text colors
     out property <color> text-bright: #f8f8fc;
     out property <color> text-normal: #dcdce4;
-    out property <color> text-muted: #80808c;
+    out property <color> text-muted: #6b8ab0;
 
     // Workspace colors
-    out property <color> ws-empty: #1c1c22;
-    out property <color> ws-occupied: #3a3a44;
+    out property <color> ws-empty: #0a1628;
+    out property <color> ws-occupied: #1a3356;
     out property <color> ws-active: #58a6ff;
     out property <color> ws-urgent: #ff6b6b;
     out property <color> ws-immersion: #4ec9b0;
@@ -149,9 +152,9 @@ export component StatusBar inherits Window {
         border-radius: 4px;
 
         // 3D gradient background
-        background: @linear-gradient(180deg, #3a3a44 0%, #26262e 100%);
+        background: @linear-gradient(180deg, #1a3356 0%, #0E213D 100%);
         border-width: 1px;
-        border-color: #4a4a55.with-alpha(0.3);
+        border-color: #2a4a6e.with-alpha(0.3);
 
         // Soft drop shadow
         drop-shadow-color: #000000.with-alpha(0.35);
@@ -182,7 +185,7 @@ export component StatusBar inherits Window {
             Rectangle {
                 width: 1px;
                 height: 8px;
-                background: #4a4a55.with-alpha(0.4);
+                background: #2a4a6e.with-alpha(0.4);
             }
 
             // Immersion workspaces 7-8
