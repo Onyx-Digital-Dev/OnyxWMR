@@ -53,17 +53,20 @@ pub struct AppInfo {
 }
 
 /// Client for communicating with osv-intake-daemon
+/// Supports persistent connections for multiple requests
 pub struct DaemonClient {
-    stream: UnixStream,
+    reader: BufReader<UnixStream>,
+    writer: UnixStream,
 }
 
 impl DaemonClient {
     /// Connect to the daemon
     pub fn connect() -> anyhow::Result<Self> {
-        let stream = UnixStream::connect(SOCKET_PATH)?;
-        stream.set_read_timeout(Some(std::time::Duration::from_secs(2)))?;
-        stream.set_write_timeout(Some(std::time::Duration::from_secs(2)))?;
-        Ok(Self { stream })
+        let writer = UnixStream::connect(SOCKET_PATH)?;
+        writer.set_read_timeout(Some(std::time::Duration::from_secs(2)))?;
+        writer.set_write_timeout(Some(std::time::Duration::from_secs(2)))?;
+        let reader = BufReader::new(writer.try_clone()?);
+        Ok(Self { reader, writer })
     }
 
     /// Send a request and receive response
@@ -71,13 +74,12 @@ impl DaemonClient {
         // Send request as JSON line
         let mut json = serde_json::to_string(req)?;
         json.push('\n');
-        self.stream.write_all(json.as_bytes())?;
-        self.stream.flush()?;
+        self.writer.write_all(json.as_bytes())?;
+        self.writer.flush()?;
 
         // Read response
-        let mut reader = BufReader::new(&self.stream);
         let mut line = String::new();
-        reader.read_line(&mut line)?;
+        self.reader.read_line(&mut line)?;
 
         let resp: Response = serde_json::from_str(&line)?;
         Ok(resp)

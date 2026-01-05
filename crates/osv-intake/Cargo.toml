@@ -16,6 +16,10 @@ path = "src/main.rs"
 name = "osv-intake-daemon"
 path = "src/daemon.rs"
 
+[[bin]]
+name = "osv-intake-stress"
+path = "src/bin/stress_test.rs"
+
 [dependencies]
 osv-ipc = { version = "0.1.0", path = "../osv-ipc" }
 anyhow.workspace = true

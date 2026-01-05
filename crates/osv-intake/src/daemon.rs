@@ -40,15 +40,19 @@ fn main() -> Result<()> {
     let listener = UnixListener::bind(SOCKET_PATH)?;
     info!("Listening on {}", SOCKET_PATH);
 
-    // Handle connections
+    // Handle connections - spawn threads for concurrent handling
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 let apps_clone = Arc::clone(&apps);
-                // Handle each connection (could spawn thread for concurrency)
-                if let Err(e) = handle_client(stream, &apps_clone) {
-                    warn!("Client error: {}", e);
-                }
+                std::thread::spawn(move || {
+                    if let Err(e) = handle_client(stream, &apps_clone) {
+                        // Only log if it's not a clean disconnect
+                        if !e.to_string().contains("end of file") {
+                            warn!("Client error: {}", e);
+                        }
+                    }
+                });
             }
             Err(e) => {
                 error!("Connection error: {}", e);
@@ -60,59 +64,84 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Handle a client connection
+/// Handle a client connection - supports persistent connections with multiple requests
 fn handle_client(stream: UnixStream, apps: &AppList) -> Result<()> {
-    let mut reader = BufReader::new(&stream);
-    let mut writer = &stream;
+    let reader_stream = stream.try_clone()?;
+    let mut reader = BufReader::new(reader_stream);
+    let mut writer = stream;
 
-    // Read request line
-    let mut line = String::new();
-    reader.read_line(&mut line)?;
+    loop {
+        // Read request line
+        let mut line = String::new();
+        let bytes_read = reader.read_line(&mut line)?;
 
-    // Parse request
-    let request: Request = serde_json::from_str(&line)?;
-
-    // Process request
-    let response = match request {
-        Request::Search { query } => {
-            let results = apps.search(&query);
-            let app_infos: Vec<AppInfo> = results
-                .into_iter()
-                .filter_map(|idx| apps.get(idx))
-                .map(|app| AppInfo {
-                    name: app.name.clone(),
-                    generic_name: app.generic_name.clone(),
-                    exec: app.exec.clone(),
-                    icon: app.icon.clone(),
-                    terminal: app.terminal,
-                    desktop_file: app.desktop_file.clone(),
-                })
-                .collect();
-            Response::Results { apps: app_infos }
+        // Clean disconnect
+        if bytes_read == 0 {
+            return Ok(());
         }
-        Request::List => {
-            // Return all apps (limited to reasonable number)
-            let app_infos: Vec<AppInfo> = (0..apps.len().min(100))
-                .filter_map(|idx| apps.get(idx))
-                .map(|app| AppInfo {
-                    name: app.name.clone(),
-                    generic_name: app.generic_name.clone(),
-                    exec: app.exec.clone(),
-                    icon: app.icon.clone(),
-                    terminal: app.terminal,
-                    desktop_file: app.desktop_file.clone(),
-                })
-                .collect();
-            Response::Results { apps: app_infos }
+
+        // Skip empty lines
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
         }
-        Request::Ping => Response::Pong,
-    };
 
-    // Send response
-    let mut json = serde_json::to_string(&response)?;
-    json.push('\n');
-    writer.write_all(json.as_bytes())?;
-    writer.flush()?;
+        // Parse request
+        let request: Request = match serde_json::from_str(trimmed) {
+            Ok(req) => req,
+            Err(e) => {
+                // Send error response and continue
+                let err_resp = Response::Error {
+                    message: format!("Invalid JSON: {}", e),
+                };
+                let mut json = serde_json::to_string(&err_resp)?;
+                json.push('\n');
+                writer.write_all(json.as_bytes())?;
+                writer.flush()?;
+                continue;
+            }
+        };
 
-    Ok(())
+        // Process request
+        let response = match request {
+            Request::Search { query } => {
+                let results = apps.search(&query);
+                let app_infos: Vec<AppInfo> = results
+                    .into_iter()
+                    .filter_map(|idx| apps.get(idx))
+                    .map(|app| AppInfo {
+                        name: app.name.clone(),
+                        generic_name: app.generic_name.clone(),
+                        exec: app.exec.clone(),
+                        icon: app.icon.clone(),
+                        terminal: app.terminal,
+                        desktop_file: app.desktop_file.clone(),
+                    })
+                    .collect();
+                Response::Results { apps: app_infos }
+            }
+            Request::List => {
+                // Return all apps (limited to reasonable number)
+                let app_infos: Vec<AppInfo> = (0..apps.len().min(100))
+                    .filter_map(|idx| apps.get(idx))
+                    .map(|app| AppInfo {
+                        name: app.name.clone(),
+                        generic_name: app.generic_name.clone(),
+                        exec: app.exec.clone(),
+                        icon: app.icon.clone(),
+                        terminal: app.terminal,
+                        desktop_file: app.desktop_file.clone(),
+                    })
+                    .collect();
+                Response::Results { apps: app_infos }
+            }
+            Request::Ping => Response::Pong,
+        };
+
+        // Send response
+        let mut json = serde_json::to_string(&response)?;
+        json.push('\n');
+        writer.write_all(json.as_bytes())?;
+        writer.flush()?;
+    }
 }
