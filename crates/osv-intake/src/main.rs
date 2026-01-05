@@ -1,18 +1,26 @@
 //! osv-intake - Application launcher for osvwm
 //!
-//! A minimal, keyboard-driven application launcher using Slint UI.
-//! Triggered by Super+Space, provides command input and app search.
+//! A keyboard-driven application launcher using Slint UI.
+//! Features:
+//! - Fuzzy search through .desktop applications
+//! - Results list with keyboard navigation
+//! - Up/Down to navigate, Enter to launch, Escape to close
 
 mod apps;
 
 use anyhow::Result;
 use apps::AppList;
-use slint::ComponentHandle;
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
+use std::cell::RefCell;
 use std::process::Command;
-use tracing::{info, Level};
+use std::rc::Rc;
+use tracing::{info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
 slint::include_modules!();
+
+/// Maximum number of results to display
+const MAX_RESULTS: usize = 8;
 
 fn main() -> Result<()> {
     // Initialize logging
@@ -30,27 +38,120 @@ fn main() -> Result<()> {
     // Create the Slint UI
     let ui = IntakeLauncher::new()?;
 
-    // Handle search changes (for future app matching)
-    let apps_for_search = apps;
+    // Results model - stores matched apps
+    let results_model: Rc<VecModel<AppResult>> = Rc::new(VecModel::default());
+    ui.set_results(ModelRc::from(results_model.clone()));
+
+    // Track current results for launching
+    let current_results: Rc<RefCell<Vec<apps::App>>> = Rc::new(RefCell::new(Vec::new()));
+
+    // Handle search changes - update results
+    let apps_for_search = apps.clone();
+    let results_for_search = results_model.clone();
+    let current_for_search = current_results.clone();
+    let ui_weak = ui.as_weak();
+
     ui.on_search_changed(move |query| {
-        let results = apps_for_search.search(&query);
-        info!("Search '{}' matched {} apps", query, results.len());
+        let query_str = query.to_string();
+
+        // Clear and update results
+        results_for_search.set_vec(Vec::new());
+
+        if query_str.is_empty() {
+            current_for_search.borrow_mut().clear();
+            return;
+        }
+
+        // Fuzzy search
+        let matched_indices = apps_for_search.search(&query_str);
+        let mut matched_apps = Vec::new();
+        let mut slint_results = Vec::new();
+
+        for &idx in matched_indices.iter().take(MAX_RESULTS) {
+            if let Some(app) = apps_for_search.get(idx) {
+                slint_results.push(AppResult {
+                    name: SharedString::from(&app.name),
+                    description: SharedString::from(
+                        app.generic_name.as_deref().unwrap_or("")
+                    ),
+                    exec: SharedString::from(&app.exec),
+                });
+                matched_apps.push(app.clone());
+            }
+        }
+
+        // Update models
+        results_for_search.set_vec(slint_results);
+        *current_for_search.borrow_mut() = matched_apps;
+
+        // Reset selection to first item
+        if let Some(ui) = ui_weak.upgrade() {
+            ui.set_selected_index(0);
+        }
     });
 
-    // Handle command launch
-    ui.on_launch_command(move |command| {
-        let cmd = command.to_string();
-        if !cmd.is_empty() {
-            info!("Launching: {}", cmd);
-            // Spawn the command
-            if let Err(e) = Command::new("sh").arg("-c").arg(&cmd).spawn() {
-                tracing::error!("Failed to launch '{}': {}", cmd, e);
+    // Handle launch selected (Enter key)
+    let current_for_launch = current_results.clone();
+    let ui_weak_launch = ui.as_weak();
+
+    ui.on_launch_selected(move || {
+        let selected = if let Some(ui) = ui_weak_launch.upgrade() {
+            ui.get_selected_index() as usize
+        } else {
+            return;
+        };
+
+        let results = current_for_launch.borrow();
+        if let Some(app) = results.get(selected) {
+            launch_app(&app.exec, app.terminal);
+        } else {
+            // No results - try launching as raw command
+            if let Some(ui) = ui_weak_launch.upgrade() {
+                let query = ui.get_search_query().to_string();
+                if !query.is_empty() {
+                    launch_command(&query);
+                }
             }
         }
         slint::quit_event_loop().ok();
     });
 
-    // Handle close
+    // Handle launch at specific index (click)
+    let current_for_click = current_results.clone();
+
+    ui.on_launch_at_index(move |idx| {
+        let results = current_for_click.borrow();
+        if let Some(app) = results.get(idx as usize) {
+            launch_app(&app.exec, app.terminal);
+        }
+        slint::quit_event_loop().ok();
+    });
+
+    // Handle navigation
+    let ui_weak_nav = ui.as_weak();
+    let results_for_nav = results_model.clone();
+
+    ui.on_navigate_up(move || {
+        if let Some(ui) = ui_weak_nav.upgrade() {
+            let current = ui.get_selected_index();
+            if current > 0 {
+                ui.set_selected_index(current - 1);
+            }
+        }
+    });
+
+    let ui_weak_nav2 = ui.as_weak();
+    ui.on_navigate_down(move || {
+        if let Some(ui) = ui_weak_nav2.upgrade() {
+            let current = ui.get_selected_index();
+            let count = results_for_nav.row_count() as i32;
+            if current < count - 1 {
+                ui.set_selected_index(current + 1);
+            }
+        }
+    });
+
+    // Handle close (Escape)
     ui.on_close_launcher(|| {
         info!("Launcher closed");
         slint::quit_event_loop().ok();
@@ -61,4 +162,32 @@ fn main() -> Result<()> {
 
     info!("osv-intake exiting");
     Ok(())
+}
+
+/// Launch an application
+fn launch_app(exec: &str, terminal: bool) {
+    info!("Launching app: {}", exec);
+
+    let result = if terminal {
+        // Launch in terminal
+        Command::new("sh")
+            .arg("-c")
+            .arg(format!("x-terminal-emulator -e {}", exec))
+            .spawn()
+    } else {
+        Command::new("sh").arg("-c").arg(exec).spawn()
+    };
+
+    if let Err(e) = result {
+        warn!("Failed to launch '{}': {}", exec, e);
+    }
+}
+
+/// Launch a raw command
+fn launch_command(cmd: &str) {
+    info!("Launching command: {}", cmd);
+
+    if let Err(e) = Command::new("sh").arg("-c").arg(cmd).spawn() {
+        warn!("Failed to launch '{}': {}", cmd, e);
+    }
 }

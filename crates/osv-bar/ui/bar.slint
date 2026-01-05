@@ -1,5 +1,5 @@
 // osv-bar - Status Bar UI
-// Thin 24px floating bar with OSV color palette
+// Thin floating bar (10-20px) with workspace capsules showing window indicators
 
 import { HorizontalBox } from "std-widgets.slint";
 
@@ -7,64 +7,106 @@ import { HorizontalBox } from "std-widgets.slint";
 // OSV COLOR PALETTE
 // ============================================================================
 
-struct OsvColors {
-    black: color,
-    dark: color,
-    surface: color,
-    border: color,
-    muted: color,
-    text: color,
-    bright: color,
-    accent-primary: color,
-}
-
 global OsvPalette {
-    out property <OsvColors> colors: {
-        black: #121216,
-        dark: #1c1c22,
-        surface: #26262e,
-        border: #3a3a44,
-        muted: #80808c,
-        text: #dcdce4,
-        bright: #f8f8fc,
-        accent-primary: #58a6ff,
-    };
+    // Bar colors
+    out property <color> bar-bg-top: #3a3a44;
+    out property <color> bar-bg-bottom: #26262e;
+    out property <color> bar-border: #4a4a55;
+
+    // Text colors
+    out property <color> text-bright: #f8f8fc;
+    out property <color> text-normal: #dcdce4;
+    out property <color> text-muted: #80808c;
+
+    // Workspace colors
+    out property <color> ws-empty: #1c1c22;
+    out property <color> ws-occupied: #3a3a44;
+    out property <color> ws-active: #58a6ff;
+    out property <color> ws-urgent: #ff6b6b;
+    out property <color> ws-immersion: #4ec9b0;
 }
 
 // ============================================================================
-// WORKSPACE CAPSULE
+// WORKSPACE CAPSULE - Auto-sizes based on window count, shows indicators
 // ============================================================================
 
 component WorkspaceCapsule inherits Rectangle {
-    in property <int> workspace-number;
+    in property <int> workspace-num;
     in property <int> window-count;
     in property <bool> is-active;
     in property <bool> is-urgent;
+    in property <bool> is-immersion;
 
     callback clicked();
 
-    width: 28px;
-    height: 16px;
-    border-radius: 8px;
-    background: is-active ? OsvPalette.colors.accent-primary.with-alpha(0.3)
-                : is-urgent ? #ff6b6b.with-alpha(0.3)
-                : window-count > 0 ? OsvPalette.colors.surface
-                : OsvPalette.colors.dark;
-    border-width: is-active ? 1px : 0px;
-    border-color: OsvPalette.colors.accent-primary;
+    // Auto-size: base 22px, grows 5px per window (max 4 shown)
+    width: 22px + (Math.min(window-count, 4) * 5px);
+    height: 12px;
+    border-radius: 6px;
+
+    // Background based on state
+    background: is-active ? OsvPalette.ws-active.with-alpha(0.25)
+              : is-urgent ? OsvPalette.ws-urgent.with-alpha(0.25)
+              : is-immersion ? OsvPalette.ws-immersion.with-alpha(0.12)
+              : window-count > 0 ? OsvPalette.ws-occupied
+              : OsvPalette.ws-empty;
+
+    // Border for active/immersion
+    border-width: is-active ? 1px : is-immersion ? 1px : 0px;
+    border-color: is-active ? OsvPalette.ws-active
+                : is-immersion ? OsvPalette.ws-immersion.with-alpha(0.4)
+                : transparent;
 
     HorizontalLayout {
         alignment: center;
-        padding: 0px;
+        spacing: 2px;
+        padding-left: 3px;
+        padding-right: 3px;
 
+        // Workspace label
         Text {
-            text: workspace-number;
-            color: is-active ? OsvPalette.colors.bright
-                  : window-count > 0 ? OsvPalette.colors.text
-                  : OsvPalette.colors.muted;
-            font-size: 10px;
+            text: is-immersion ? (workspace-num == 7 ? "I1" : "I2") : workspace-num;
+            color: is-active ? OsvPalette.text-bright
+                  : is-immersion ? OsvPalette.ws-immersion
+                  : window-count > 0 ? OsvPalette.text-normal
+                  : OsvPalette.text-muted;
+            font-size: 8px;
+            font-weight: is-active ? 600 : 400;
             vertical-alignment: center;
-            horizontal-alignment: center;
+        }
+
+        // Window indicator dots (show up to 4)
+        if window-count >= 1: Rectangle {
+            width: 3px;
+            height: 3px;
+            border-radius: 1.5px;
+            background: is-active ? OsvPalette.text-bright : OsvPalette.text-muted;
+        }
+        if window-count >= 2: Rectangle {
+            width: 3px;
+            height: 3px;
+            border-radius: 1.5px;
+            background: is-active ? OsvPalette.text-bright : OsvPalette.text-muted;
+        }
+        if window-count >= 3: Rectangle {
+            width: 3px;
+            height: 3px;
+            border-radius: 1.5px;
+            background: is-active ? OsvPalette.text-bright : OsvPalette.text-muted;
+        }
+        if window-count >= 4: Rectangle {
+            width: 3px;
+            height: 3px;
+            border-radius: 1.5px;
+            background: is-active ? OsvPalette.text-bright : OsvPalette.text-muted;
+        }
+
+        // +N for more than 4 windows
+        if window-count > 4: Text {
+            text: "+";
+            color: OsvPalette.text-muted;
+            font-size: 7px;
+            vertical-alignment: center;
         }
     }
 
@@ -74,16 +116,18 @@ component WorkspaceCapsule inherits Rectangle {
 }
 
 // ============================================================================
-// MAIN BAR WINDOW
+// MAIN BAR - Height: 16px content + 4px padding = 20px total
 // ============================================================================
 
 export component StatusBar inherits Window {
-    // Properties
+    // Workspace state (updated via IPC)
     in property <int> active-workspace: 0;
     in property <[int]> window-counts: [0, 0, 0, 0, 0, 0, 0, 0];
     in property <[bool]> urgent-workspaces: [false, false, false, false, false, false, false, false];
-    in property <string> current-time: "12:00";
-    in property <string> current-date: "Mon Jan 1";
+
+    // Time display
+    in property <string> current-time: "00:00";
+    in property <string> current-date: "Jan 01";
 
     // Callbacks
     callback switch-workspace(int);
@@ -91,73 +135,101 @@ export component StatusBar inherits Window {
     title: "osv-bar";
     background: transparent;
     default-font-family: "Inter";
-    default-font-size: 12px;
+    default-font-size: 10px;
 
-    // Bar dimensions
-    height: 24px;
+    // Total height: 16px bar + 4px top padding
+    height: 20px;
 
-    // Main bar container
+    // Floating bar with padding from edges
     Rectangle {
-        background: @linear-gradient(180deg, #2a2a32 0%, #1c1c22 100%);
-        border-radius: 6px;
-        border-width: 1px;
-        border-color: OsvPalette.colors.border.with-alpha(0.5);
+        x: 6px;
+        y: 4px;
+        width: parent.width - 12px;
+        height: 14px;
+        border-radius: 4px;
 
-        // Drop shadow simulation
-        drop-shadow-color: #000000.with-alpha(0.4);
-        drop-shadow-blur: 4px;
-        drop-shadow-offset-y: 2px;
+        // 3D gradient background
+        background: @linear-gradient(180deg, #3a3a44 0%, #26262e 100%);
+        border-width: 1px;
+        border-color: #4a4a55.with-alpha(0.3);
+
+        // Soft drop shadow
+        drop-shadow-color: #000000.with-alpha(0.35);
+        drop-shadow-blur: 3px;
+        drop-shadow-offset-y: 1px;
 
         HorizontalLayout {
-            padding-left: 8px;
-            padding-right: 8px;
-            spacing: 4px;
+            padding-left: 6px;
+            padding-right: 6px;
+            spacing: 3px;
 
-            // Left: Workspace capsules
+            // LEFT: Regular workspaces 1-6
             HorizontalLayout {
-                spacing: 4px;
+                spacing: 2px;
                 alignment: start;
 
-                for i in 8: WorkspaceCapsule {
-                    workspace-number: i + 1;
+                for i in 6: WorkspaceCapsule {
+                    workspace-num: i + 1;
                     window-count: window-counts[i];
                     is-active: active-workspace == i;
                     is-urgent: urgent-workspaces[i];
-
+                    is-immersion: false;
                     clicked => { switch-workspace(i); }
                 }
             }
 
-            // Center: Branding
+            // Separator before immersion
+            Rectangle {
+                width: 1px;
+                height: 8px;
+                background: #4a4a55.with-alpha(0.4);
+            }
+
+            // Immersion workspaces 7-8
+            HorizontalLayout {
+                spacing: 2px;
+                alignment: start;
+
+                for i in 2: WorkspaceCapsule {
+                    workspace-num: i + 7;
+                    window-count: window-counts[i + 6];
+                    is-active: active-workspace == (i + 6);
+                    is-urgent: urgent-workspaces[i + 6];
+                    is-immersion: true;
+                    clicked => { switch-workspace(i + 6); }
+                }
+            }
+
+            // CENTER: Branding (flexible space)
             Rectangle {
                 horizontal-stretch: 1;
 
                 Text {
                     text: "Onyx OSV";
-                    color: OsvPalette.colors.bright;
-                    font-size: 11px;
+                    color: OsvPalette.text-normal;
+                    font-size: 9px;
                     font-weight: 500;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
             }
 
-            // Right: Time and Date
+            // RIGHT: Date and Time
             HorizontalLayout {
-                spacing: 8px;
+                spacing: 5px;
                 alignment: end;
 
                 Text {
                     text: current-date;
-                    color: OsvPalette.colors.muted;
-                    font-size: 10px;
+                    color: OsvPalette.text-muted;
+                    font-size: 8px;
                     vertical-alignment: center;
                 }
 
                 Text {
                     text: current-time;
-                    color: OsvPalette.colors.text;
-                    font-size: 11px;
+                    color: OsvPalette.text-normal;
+                    font-size: 9px;
                     font-weight: 500;
                     vertical-alignment: center;
                 }

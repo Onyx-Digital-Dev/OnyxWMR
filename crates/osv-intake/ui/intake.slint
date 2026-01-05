@@ -1,120 +1,184 @@
 // osv-intake - Application Launcher UI
-// Minimal centered launcher: 450x100px
+// Shows search input with results list
 
-import { LineEdit, VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { LineEdit } from "std-widgets.slint";
 
 // ============================================================================
 // OSV COLOR PALETTE
 // ============================================================================
 
-struct OsvColors {
-    black: color,
-    dark: color,
-    surface: color,
-    border: color,
-    muted: color,
-    text: color,
-    bright: color,
-    accent-primary: color,
-}
-
 global OsvPalette {
-    out property <OsvColors> colors: {
-        black: #121216,
-        dark: #1c1c22,
-        surface: #26262e,
-        border: #3a3a44,
-        muted: #80808c,
-        text: #dcdce4,
-        bright: #f8f8fc,
-        accent-primary: #58a6ff,
-    };
+    out property <color> black: #121216;
+    out property <color> dark: #1c1c22;
+    out property <color> surface: #26262e;
+    out property <color> border: #3a3a44;
+    out property <color> muted: #80808c;
+    out property <color> text: #dcdce4;
+    out property <color> bright: #f8f8fc;
+    out property <color> accent: #58a6ff;
 }
 
 // ============================================================================
-// MAIN LAUNCHER WINDOW
+// APP RESULT ITEM
+// ============================================================================
+
+struct AppResult {
+    name: string,
+    description: string,
+    exec: string,
+}
+
+component AppResultItem inherits Rectangle {
+    in property <string> app-name;
+    in property <string> app-description;
+    in property <bool> is-selected;
+
+    callback clicked();
+
+    height: 32px;
+    background: is-selected ? OsvPalette.accent.with-alpha(0.15) : transparent;
+    border-radius: 4px;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 8px;
+
+        // App name
+        Text {
+            text: app-name;
+            color: is-selected ? OsvPalette.bright : OsvPalette.text;
+            font-size: 12px;
+            font-weight: is-selected ? 500 : 400;
+            vertical-alignment: center;
+            overflow: elide;
+            max-width: 180px;
+        }
+
+        // Description (muted)
+        Text {
+            text: app-description;
+            color: OsvPalette.muted;
+            font-size: 10px;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+    }
+
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// ============================================================================
+// MAIN LAUNCHER
 // ============================================================================
 
 export component IntakeLauncher inherits Window {
-    // Properties
+    // Search state
     in-out property <string> search-query;
+    in property <[AppResult]> results: [];
+    in-out property <int> selected-index: 0;
 
     // Callbacks
     callback search-changed(string);
-    callback launch-command(string);
+    callback launch-selected();
+    callback launch-at-index(int);
     callback close-launcher();
+    callback navigate-up();
+    callback navigate-down();
 
     title: "OSV-Intake";
     background: transparent;
     default-font-family: "Inter";
-    default-font-size: 14px;
+    default-font-size: 12px;
 
-    width: 450px;
-    height: 100px;
+    // Dynamic height based on results
+    width: 420px;
+    height: 48px + Math.min(results.length, 8) * 32px + (results.length > 0 ? 8px : 0px);
 
-    // Main container with rounded corners
+    // Main container
     Rectangle {
-        background: OsvPalette.colors.black.with-alpha(0.94);
-        border-radius: 12px;
+        background: OsvPalette.black.with-alpha(0.95);
+        border-radius: 8px;
         border-width: 1px;
-        border-color: OsvPalette.colors.border;
+        border-color: OsvPalette.border;
+
+        // Drop shadow
+        drop-shadow-color: #000000.with-alpha(0.5);
+        drop-shadow-blur: 8px;
+        drop-shadow-offset-y: 4px;
 
         VerticalLayout {
-            padding: 16px;
-            spacing: 8px;
-            alignment: center;
+            padding: 8px;
+            spacing: 4px;
 
-            // Title
-            Text {
-                text: "OSV-Intake";
-                color: OsvPalette.colors.bright;
-                font-size: 16px;
-                font-weight: 600;
-                horizontal-alignment: center;
-            }
-
-            // Search box
+            // Search input row
             Rectangle {
-                height: 36px;
-                background: OsvPalette.colors.surface;
-                border-radius: 6px;
-                border-width: 1px;
-                border-color: OsvPalette.colors.border;
+                height: 32px;
+                background: OsvPalette.surface;
+                border-radius: 4px;
 
                 HorizontalLayout {
-                    padding-left: 12px;
-                    padding-right: 12px;
+                    padding-left: 10px;
+                    padding-right: 10px;
 
                     search-input := LineEdit {
-                        font-size: 14px;
+                        font-size: 13px;
                         text <=> search-query;
-                        placeholder-text: "Type command or search...";
+                        placeholder-text: "Search applications...";
 
                         edited => {
                             search-changed(self.text);
+                            selected-index = 0;
                         }
 
                         accepted => {
-                            launch-command(self.text);
+                            launch-selected();
                         }
+                    }
+                }
+            }
+
+            // Results list (max 8 visible)
+            if results.length > 0: VerticalLayout {
+                spacing: 2px;
+
+                for result[idx] in results: AppResultItem {
+                    app-name: result.name;
+                    app-description: result.description;
+                    is-selected: idx == selected-index;
+
+                    clicked => {
+                        selected-index = idx;
+                        launch-at-index(idx);
                     }
                 }
             }
         }
     }
 
-    // Keyboard handling
+    // Keyboard navigation
     FocusScope {
         key-pressed(event) => {
             if (event.text == Key.Escape) {
                 close-launcher();
                 return accept;
             }
+            if (event.text == Key.UpArrow) {
+                navigate-up();
+                return accept;
+            }
+            if (event.text == Key.DownArrow) {
+                navigate-down();
+                return accept;
+            }
             return reject;
         }
     }
 
-    // Focus search input on start
+    // Focus on start
     init => {
         search-input.focus();
     }

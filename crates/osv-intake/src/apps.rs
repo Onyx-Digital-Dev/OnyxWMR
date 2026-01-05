@@ -44,6 +44,15 @@ pub struct AppList {
     matcher: SkimMatcherV2,
 }
 
+impl Clone for AppList {
+    fn clone(&self) -> Self {
+        Self {
+            apps: self.apps.clone(),
+            matcher: SkimMatcherV2::default(),
+        }
+    }
+}
+
 impl AppList {
     /// Load applications from XDG directories
     pub fn load() -> Self {
