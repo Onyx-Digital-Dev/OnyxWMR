@@ -34,22 +34,25 @@ impl Default for Layout {
             shadow: Shadow::default(),
             tab_indicator: TabIndicator::default(),
             insert_hint: InsertHint::default(),
+            // OSV: Fixed window sizes - 1u (1/3), 2u (2/3), 3u (full)
             preset_column_widths: vec![
-                PresetSize::Proportion(1. / 3.),
-                PresetSize::Proportion(0.5),
-                PresetSize::Proportion(2. / 3.),
+                PresetSize::Proportion(1. / 3.),  // 1u
+                PresetSize::Proportion(2. / 3.),  // 2u
+                PresetSize::Proportion(1.0),      // 3u
             ],
-            default_column_width: Some(PresetSize::Proportion(0.5)),
+            // OSV: Default to 1u (1/3 screen width)
+            default_column_width: Some(PresetSize::Proportion(1. / 3.)),
             center_focused_column: CenterFocusedColumn::Never,
             always_center_single_column: false,
             empty_workspace_above_first: false,
             default_column_display: ColumnDisplay::Normal,
             gaps: 16.,
             struts: Struts::default(),
+            // OSV: Window heights match the width units
             preset_window_heights: vec![
-                PresetSize::Proportion(1. / 3.),
-                PresetSize::Proportion(0.5),
-                PresetSize::Proportion(2. / 3.),
+                PresetSize::Proportion(1. / 3.),  // 1u
+                PresetSize::Proportion(2. / 3.),  // 2u
+                PresetSize::Proportion(1.0),      // Full height
             ],
             background_color: DEFAULT_BACKGROUND_COLOR,
         }
