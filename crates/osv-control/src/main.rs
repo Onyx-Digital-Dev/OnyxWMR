@@ -223,6 +223,66 @@ enum DisplayAction {
         #[arg(long)]
         enable: bool,
     },
+    /// Brightness control
+    Brightness {
+        #[command(subcommand)]
+        action: BrightnessAction,
+    },
+    /// Night mode / color temperature
+    NightMode {
+        #[command(subcommand)]
+        action: NightModeAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum BrightnessAction {
+    /// Get current brightness
+    Get,
+    /// Set brightness level (0-100)
+    Set {
+        /// Brightness level (0-100)
+        level: u8,
+    },
+    /// Increase brightness
+    Up {
+        /// Amount to increase (default: 10)
+        #[arg(default_value = "10")]
+        amount: u8,
+    },
+    /// Decrease brightness
+    Down {
+        /// Amount to decrease (default: 10)
+        #[arg(default_value = "10")]
+        amount: u8,
+    },
+}
+
+#[derive(Subcommand)]
+enum NightModeAction {
+    /// Get night mode status
+    Status,
+    /// Enable night mode with temperature
+    Enable {
+        /// Color temperature in Kelvin (default: 4500)
+        #[arg(default_value = "4500")]
+        temperature: u32,
+    },
+    /// Enable automatic night mode (time-based)
+    Auto,
+    /// Disable night mode
+    Disable,
+    /// Toggle night mode
+    Toggle {
+        /// Color temperature when enabling (default: 4500)
+        #[arg(default_value = "4500")]
+        temperature: u32,
+    },
+    /// Use a preset
+    Preset {
+        /// Preset name (daylight, sunset, candle, night)
+        name: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -562,6 +622,94 @@ fn handle_display(action: DisplayAction, json: bool) -> Result<()> {
         DisplayAction::Toggle { output, enable } => {
             display::DisplayBackend::set_enabled(&output, enable)?;
             println!("{} {}", if enable { "Enabled" } else { "Disabled" }, output);
+            Ok(())
+        }
+        DisplayAction::Brightness { action } => handle_brightness(action, json),
+        DisplayAction::NightMode { action } => handle_night_mode(action, json),
+    }
+}
+
+fn handle_brightness(action: BrightnessAction, json: bool) -> Result<()> {
+    match action {
+        BrightnessAction::Get => {
+            let info = display::BrightnessBackend::get()?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&info)?);
+            } else {
+                println!("Brightness: {}%", info.level);
+                println!("Device: {}", info.device);
+            }
+            Ok(())
+        }
+        BrightnessAction::Set { level } => {
+            display::BrightnessBackend::set(level)?;
+            println!("Brightness set to {}%", level);
+            Ok(())
+        }
+        BrightnessAction::Up { amount } => {
+            display::BrightnessBackend::increase(amount)?;
+            let new_level = display::BrightnessBackend::get()?.level;
+            println!("Brightness: {}%", new_level);
+            Ok(())
+        }
+        BrightnessAction::Down { amount } => {
+            display::BrightnessBackend::decrease(amount)?;
+            let new_level = display::BrightnessBackend::get()?.level;
+            println!("Brightness: {}%", new_level);
+            Ok(())
+        }
+    }
+}
+
+fn handle_night_mode(action: NightModeAction, json: bool) -> Result<()> {
+    match action {
+        NightModeAction::Status => {
+            let status = display::NightModeBackend::status()?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&status)?);
+            } else {
+                println!("Night mode: {}", if status.enabled { "enabled" } else { "disabled" });
+                if let Some(temp) = status.temperature {
+                    println!("Temperature: {}K", temp);
+                }
+                if status.automatic {
+                    println!("Mode: automatic");
+                }
+            }
+            Ok(())
+        }
+        NightModeAction::Enable { temperature } => {
+            display::NightModeBackend::enable(temperature)?;
+            println!("Night mode enabled at {}K", temperature);
+            Ok(())
+        }
+        NightModeAction::Auto => {
+            display::NightModeBackend::enable_auto()?;
+            println!("Night mode enabled (automatic)");
+            Ok(())
+        }
+        NightModeAction::Disable => {
+            display::NightModeBackend::disable()?;
+            println!("Night mode disabled");
+            Ok(())
+        }
+        NightModeAction::Toggle { temperature } => {
+            display::NightModeBackend::toggle(temperature)?;
+            let status = display::NightModeBackend::status()?;
+            println!("Night mode: {}", if status.enabled { "enabled" } else { "disabled" });
+            Ok(())
+        }
+        NightModeAction::Preset { name } => {
+            let preset = match name.to_lowercase().as_str() {
+                "daylight" | "day" => display::NightModePreset::Daylight,
+                "sunset" => display::NightModePreset::Sunset,
+                "candle" => display::NightModePreset::Candle,
+                "night" => display::NightModePreset::Night,
+                _ => anyhow::bail!("Unknown preset '{}'. Use: daylight, sunset, candle, night", name),
+            };
+            let temp = preset.temperature();
+            display::NightModeBackend::enable(temp)?;
+            println!("Night mode set to {:?} ({}K)", preset, temp);
             Ok(())
         }
     }

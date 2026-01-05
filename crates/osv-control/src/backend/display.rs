@@ -6,6 +6,7 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -440,5 +441,375 @@ impl DisplayBackend {
         }
 
         Ok(())
+    }
+}
+
+// ============================================================================
+// Brightness Control
+// ============================================================================
+
+/// Brightness information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrightnessInfo {
+    /// Current brightness level (0-100)
+    pub level: u8,
+    /// Maximum brightness value (raw)
+    pub max_brightness: u32,
+    /// Current brightness value (raw)
+    pub current_brightness: u32,
+    /// Backlight device name
+    pub device: String,
+}
+
+/// Brightness backend
+pub struct BrightnessBackend;
+
+impl BrightnessBackend {
+    /// Get current brightness
+    pub fn get() -> Result<BrightnessInfo> {
+        // Try brightnessctl first (most reliable)
+        if let Ok(info) = Self::get_brightnessctl() {
+            return Ok(info);
+        }
+
+        // Fallback to reading /sys/class/backlight directly
+        Self::get_sysfs()
+    }
+
+    /// Get brightness using brightnessctl
+    fn get_brightnessctl() -> Result<BrightnessInfo> {
+        let output = Command::new("brightnessctl")
+            .args(["--machine-readable"])
+            .output()
+            .context("Failed to run brightnessctl")?;
+
+        if !output.status.success() {
+            anyhow::bail!("brightnessctl failed");
+        }
+
+        // Format: device,class,current,percentage,max
+        // e.g., "intel_backlight,backlight,1000,50%,2000"
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let parts: Vec<&str> = stdout.trim().split(',').collect();
+
+        if parts.len() >= 5 {
+            let device = parts[0].to_string();
+            let current: u32 = parts[2].parse().unwrap_or(0);
+            let percentage = parts[3].trim_end_matches('%').parse().unwrap_or(50);
+            let max: u32 = parts[4].parse().unwrap_or(100);
+
+            Ok(BrightnessInfo {
+                level: percentage,
+                max_brightness: max,
+                current_brightness: current,
+                device,
+            })
+        } else {
+            anyhow::bail!("Failed to parse brightnessctl output");
+        }
+    }
+
+    /// Get brightness from /sys/class/backlight
+    fn get_sysfs() -> Result<BrightnessInfo> {
+        let backlight_dir = Path::new("/sys/class/backlight");
+
+        if !backlight_dir.exists() {
+            anyhow::bail!("No backlight devices found");
+        }
+
+        // Find first backlight device
+        let device = fs::read_dir(backlight_dir)?
+            .filter_map(|e| e.ok())
+            .next()
+            .context("No backlight devices found")?;
+
+        let device_path = device.path();
+        let device_name = device.file_name().to_string_lossy().to_string();
+
+        let max_brightness: u32 = fs::read_to_string(device_path.join("max_brightness"))?
+            .trim()
+            .parse()
+            .context("Failed to parse max_brightness")?;
+
+        let current_brightness: u32 = fs::read_to_string(device_path.join("brightness"))?
+            .trim()
+            .parse()
+            .context("Failed to parse brightness")?;
+
+        let level = if max_brightness > 0 {
+            ((current_brightness as f32 / max_brightness as f32) * 100.0).round() as u8
+        } else {
+            0
+        };
+
+        Ok(BrightnessInfo {
+            level,
+            max_brightness,
+            current_brightness,
+            device: device_name,
+        })
+    }
+
+    /// Set brightness level (0-100)
+    pub fn set(level: u8) -> Result<()> {
+        let level = level.min(100);
+
+        // Try brightnessctl first
+        if Self::set_brightnessctl(level).is_ok() {
+            return Ok(());
+        }
+
+        // Fallback to sysfs
+        Self::set_sysfs(level)
+    }
+
+    /// Set brightness using brightnessctl
+    fn set_brightnessctl(level: u8) -> Result<()> {
+        let level_str = format!("{}%", level);
+
+        let output = Command::new("brightnessctl")
+            .args(["set", &level_str])
+            .output()
+            .context("Failed to run brightnessctl")?;
+
+        if !output.status.success() {
+            anyhow::bail!(
+                "brightnessctl failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Set brightness via sysfs (may require root)
+    fn set_sysfs(level: u8) -> Result<()> {
+        let backlight_dir = Path::new("/sys/class/backlight");
+
+        let device = fs::read_dir(backlight_dir)?
+            .filter_map(|e| e.ok())
+            .next()
+            .context("No backlight devices found")?;
+
+        let device_path = device.path();
+
+        let max_brightness: u32 = fs::read_to_string(device_path.join("max_brightness"))?
+            .trim()
+            .parse()
+            .context("Failed to parse max_brightness")?;
+
+        let new_value = ((level as f32 / 100.0) * max_brightness as f32).round() as u32;
+        let new_value = new_value.max(1); // Ensure we don't set to 0
+
+        fs::write(device_path.join("brightness"), new_value.to_string())
+            .context("Failed to write brightness (may need root)")?;
+
+        Ok(())
+    }
+
+    /// Increase brightness by a percentage
+    pub fn increase(amount: u8) -> Result<()> {
+        let current = Self::get()?.level;
+        let new_level = current.saturating_add(amount).min(100);
+        Self::set(new_level)
+    }
+
+    /// Decrease brightness by a percentage
+    pub fn decrease(amount: u8) -> Result<()> {
+        let current = Self::get()?.level;
+        let new_level = current.saturating_sub(amount).max(1); // Don't go below 1%
+        Self::set(new_level)
+    }
+}
+
+// ============================================================================
+// Night Mode / Color Temperature
+// ============================================================================
+
+/// Night mode status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NightModeStatus {
+    /// Whether night mode is currently active
+    pub enabled: bool,
+    /// Current color temperature in Kelvin (e.g., 4500K)
+    pub temperature: Option<u32>,
+    /// Whether running in automatic mode (based on time/location)
+    pub automatic: bool,
+}
+
+/// Night mode backend
+/// Supports gammastep, wlsunset, and redshift
+pub struct NightModeBackend;
+
+impl NightModeBackend {
+    /// Get current night mode status
+    pub fn status() -> Result<NightModeStatus> {
+        // Check if gammastep is running
+        if Self::is_process_running("gammastep") {
+            return Ok(NightModeStatus {
+                enabled: true,
+                temperature: Self::get_gammastep_temp(),
+                automatic: true,
+            });
+        }
+
+        // Check if wlsunset is running
+        if Self::is_process_running("wlsunset") {
+            return Ok(NightModeStatus {
+                enabled: true,
+                temperature: None, // wlsunset doesn't expose current temp easily
+                automatic: true,
+            });
+        }
+
+        Ok(NightModeStatus {
+            enabled: false,
+            temperature: None,
+            automatic: false,
+        })
+    }
+
+    /// Check if a process is running
+    fn is_process_running(name: &str) -> bool {
+        Command::new("pgrep")
+            .arg("-x")
+            .arg(name)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+
+    /// Get gammastep temperature from its status
+    fn get_gammastep_temp() -> Option<u32> {
+        // gammastep doesn't have a simple way to query current temp
+        // Could parse from config or use DBus, but for now return None
+        None
+    }
+
+    /// Enable night mode with specified temperature
+    pub fn enable(temperature: u32) -> Result<()> {
+        // Kill any existing night mode processes
+        let _ = Self::disable();
+
+        // Clamp temperature to reasonable range (1000K - 10000K)
+        let temp = temperature.clamp(1000, 10000);
+
+        // Try gammastep first (most common on Wayland)
+        if Self::try_gammastep(temp).is_ok() {
+            return Ok(());
+        }
+
+        // Try wlsunset
+        if Self::try_wlsunset(temp).is_ok() {
+            return Ok(());
+        }
+
+        anyhow::bail!("No night mode tool found. Install gammastep or wlsunset.");
+    }
+
+    /// Enable night mode with automatic scheduling
+    pub fn enable_auto() -> Result<()> {
+        // Kill any existing
+        let _ = Self::disable();
+
+        // Try gammastep in automatic mode
+        if Command::new("gammastep")
+            .spawn()
+            .map(|_| ())
+            .is_ok()
+        {
+            return Ok(());
+        }
+
+        // Try wlsunset in automatic mode (needs latitude/longitude or uses defaults)
+        if Command::new("wlsunset")
+            .spawn()
+            .map(|_| ())
+            .is_ok()
+        {
+            return Ok(());
+        }
+
+        anyhow::bail!("No night mode tool found. Install gammastep or wlsunset.");
+    }
+
+    /// Try to start gammastep with fixed temperature
+    fn try_gammastep(temperature: u32) -> Result<()> {
+        Command::new("gammastep")
+            .args(["-O", &temperature.to_string()])
+            .spawn()
+            .context("Failed to start gammastep")?;
+        Ok(())
+    }
+
+    /// Try to start wlsunset with fixed temperature
+    fn try_wlsunset(temperature: u32) -> Result<()> {
+        // wlsunset uses -T for high temp (day) and -t for low temp (night)
+        // For fixed temp, we set both to the same value
+        Command::new("wlsunset")
+            .args(["-T", &temperature.to_string(), "-t", &temperature.to_string()])
+            .spawn()
+            .context("Failed to start wlsunset")?;
+        Ok(())
+    }
+
+    /// Disable night mode
+    pub fn disable() -> Result<()> {
+        // Kill gammastep
+        let _ = Command::new("pkill")
+            .args(["-x", "gammastep"])
+            .output();
+
+        // Kill wlsunset
+        let _ = Command::new("pkill")
+            .args(["-x", "wlsunset"])
+            .output();
+
+        // Reset gamma using gammastep (if available)
+        let _ = Command::new("gammastep")
+            .args(["-x"])
+            .output();
+
+        Ok(())
+    }
+
+    /// Set color temperature (enables if not already enabled)
+    pub fn set_temperature(temperature: u32) -> Result<()> {
+        Self::enable(temperature)
+    }
+
+    /// Toggle night mode on/off
+    pub fn toggle(temperature: u32) -> Result<()> {
+        let status = Self::status()?;
+        if status.enabled {
+            Self::disable()
+        } else {
+            Self::enable(temperature)
+        }
+    }
+}
+
+/// Common night mode presets
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum NightModePreset {
+    /// Daylight (6500K) - neutral, no filtering
+    Daylight,
+    /// Sunset (4500K) - warm, moderate filtering
+    Sunset,
+    /// Candle (3000K) - very warm, strong filtering
+    Candle,
+    /// Night (2700K) - warmest, maximum filtering
+    Night,
+}
+
+impl NightModePreset {
+    /// Get the temperature in Kelvin for this preset
+    pub fn temperature(&self) -> u32 {
+        match self {
+            NightModePreset::Daylight => 6500,
+            NightModePreset::Sunset => 4500,
+            NightModePreset::Candle => 3000,
+            NightModePreset::Night => 2700,
+        }
     }
 }
