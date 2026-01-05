@@ -9,3 +9,4 @@ pub mod network;
 pub mod power;
 pub mod system;
 pub mod telemetry;
+pub mod vpn;
