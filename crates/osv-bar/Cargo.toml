@@ -16,3 +16,16 @@ osv-ipc = { version = "0.1.0", path = "../osv-ipc" }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Wayland client libraries
+smithay-client-toolkit = "0.19"
+wayland-client = "0.31"
+
+# Rendering
+tiny-skia = "0.11"
+fontdue = "0.9"
+
+# Time display
+chrono = "0.4"
