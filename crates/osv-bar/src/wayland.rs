@@ -28,6 +28,7 @@ use wayland_client::{
 };
 
 use crate::bar::{render_bar, BarState, BAR_HEIGHT, BAR_MARGIN_TOP};
+use crate::ipc::IpcClient;
 use crate::total_bar_height;
 
 /// Wayland client state
@@ -47,6 +48,7 @@ pub struct WaylandState {
     pub running: bool,
 
     pub bar_state: Rc<RefCell<BarState>>,
+    pub ipc_client: Rc<RefCell<Option<IpcClient>>>,
 }
 
 impl WaylandState {
@@ -57,6 +59,7 @@ impl WaylandState {
         shm_state: Shm,
         layer_shell: LayerShell,
         bar_state: Rc<RefCell<BarState>>,
+        ipc_client: Rc<RefCell<Option<IpcClient>>>,
     ) -> Self {
         Self {
             registry_state,
@@ -72,6 +75,7 @@ impl WaylandState {
             configured: false,
             running: true,
             bar_state,
+            ipc_client,
         }
     }
 
@@ -102,11 +106,25 @@ impl WaylandState {
         self.layer_surface = Some(layer_surface);
     }
 
+    /// Poll IPC for updates and apply to bar state
+    fn poll_ipc(&mut self) -> bool {
+        let ipc_borrow = self.ipc_client.borrow();
+        if let Some(ref client) = *ipc_borrow {
+            let mut state = self.bar_state.borrow_mut();
+            client.update_bar_state(&mut state)
+        } else {
+            false
+        }
+    }
+
     /// Render and submit a new frame
     pub fn render(&mut self) {
         if !self.configured || self.width == 0 {
             return;
         }
+
+        // Poll IPC for any updates
+        self.poll_ipc();
 
         let pool = match &mut self.pool {
             Some(pool) => pool,
@@ -119,7 +137,7 @@ impl WaylandState {
         };
 
         let stride = self.width as i32 * 4;
-        let size = stride * self.height as i32;
+        let _size = stride * self.height as i32;
 
         // Get or create buffer
         let (buffer, canvas) = pool
@@ -273,7 +291,7 @@ impl LayerShellHandler for WaylandState {
         self.configured = true;
         self.render();
 
-        // Request frame callback for continuous updates (clock)
+        // Request frame callback for continuous updates (clock + IPC)
         layer.wl_surface().frame(qh, layer.wl_surface().clone());
         layer.wl_surface().commit();
     }
@@ -301,7 +319,10 @@ delegate_layer!(WaylandState);
 delegate_registry!(WaylandState);
 
 /// Connect to Wayland and run the bar
-pub fn run_bar(bar_state: Rc<RefCell<BarState>>) -> Result<()> {
+pub fn run_bar(
+    bar_state: Rc<RefCell<BarState>>,
+    ipc_client: Rc<RefCell<Option<IpcClient>>>,
+) -> Result<()> {
     let conn = Connection::connect_to_env().context("Failed to connect to Wayland")?;
 
     let (globals, mut event_queue) =
@@ -323,6 +344,7 @@ pub fn run_bar(bar_state: Rc<RefCell<BarState>>) -> Result<()> {
         shm_state,
         layer_shell,
         bar_state,
+        ipc_client,
     );
 
     // Create the layer surface

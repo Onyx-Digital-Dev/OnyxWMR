@@ -9,13 +9,14 @@
 
 mod bar;
 mod colors;
+mod ipc;
 mod wayland;
 
 use anyhow::Result;
 use bar::{BarState, BAR_HEIGHT, BAR_MARGIN_TOP, SHADOW_BLUR};
 use std::cell::RefCell;
 use std::rc::Rc;
-use tracing::{info, Level};
+use tracing::{info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
 /// Total height needed for the layer surface (bar + margin + shadow)
@@ -40,18 +41,33 @@ fn main() -> Result<()> {
     // Create bar state
     let bar_state = Rc::new(RefCell::new(BarState::default()));
 
-    // TODO: Connect to osvwm via IPC to receive workspace updates
-    // For now, simulate some state for testing
-    {
-        let mut state = bar_state.borrow_mut();
-        state.set_active(0);
-        state.set_window_count(0, 2); // 2 windows on workspace 1
-        state.set_window_count(1, 1); // 1 window on workspace 2
-        state.set_window_count(6, 1); // 1 window on immersion workspace 7
-    }
+    // Try to connect to osvwm IPC
+    let ipc_client = match ipc::IpcClient::connect() {
+        Ok(client) => {
+            info!("Connected to osvwm IPC");
+            Some(client)
+        }
+        Err(e) => {
+            warn!("Failed to connect to osvwm IPC: {}", e);
+            warn!("Running in standalone mode with simulated state");
+
+            // Simulate some state for testing
+            let mut state = bar_state.borrow_mut();
+            state.set_active(0);
+            state.set_window_count(0, 2);
+            state.set_window_count(1, 1);
+            state.set_window_count(6, 1);
+            drop(state);
+
+            None
+        }
+    };
+
+    // Store IPC client in RefCell for access from Wayland callbacks
+    let ipc_client = Rc::new(RefCell::new(ipc_client));
 
     // Run the Wayland event loop
-    wayland::run_bar(bar_state)?;
+    wayland::run_bar(bar_state, ipc_client)?;
 
     info!("osv-bar exiting");
     Ok(())
