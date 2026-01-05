@@ -6,11 +6,11 @@
 //! Started by the compositor and runs persistently.
 
 mod apps;
-mod ipc;
+mod protocol;
 
 use anyhow::Result;
 use apps::AppList;
-use ipc::{AppInfo, Request, Response, SOCKET_PATH};
+use protocol::{AppInfo, Request, Response, SOCKET_PATH};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
