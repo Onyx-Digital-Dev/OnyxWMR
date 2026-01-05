@@ -916,6 +916,47 @@ pub enum Action {
     /// Can be useful for scripts changing the config file, to avoid waiting the small duration for
     /// osvwm's config file watcher to notice the changes.
     LoadConfigFile {},
+
+    // ========================================================================
+    // OSV Wallpaper Control (managed by osv-control)
+    // ========================================================================
+
+    /// Set the wallpaper image.
+    SetWallpaper {
+        /// Path to the wallpaper image file (must be absolute).
+        #[cfg_attr(feature = "clap", arg(long))]
+        path: String,
+        /// Wallpaper mode: fill, fit, stretch, center, or tile.
+        #[cfg_attr(feature = "clap", arg(long, default_value = "fill"))]
+        mode: WallpaperMode,
+        /// Output name to set wallpaper on. If None, applies to all outputs.
+        #[cfg_attr(feature = "clap", arg(long))]
+        output: Option<String>,
+    },
+    /// Clear the wallpaper (revert to solid color background).
+    ClearWallpaper {
+        /// Output name to clear wallpaper on. If None, clears all outputs.
+        #[cfg_attr(feature = "clap", arg(long))]
+        output: Option<String>,
+    },
+}
+
+/// Wallpaper display mode.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub enum WallpaperMode {
+    /// Scale to fill the screen, cropping if necessary.
+    #[default]
+    Fill,
+    /// Scale to fit within the screen, with letterboxing if necessary.
+    Fit,
+    /// Stretch to fill the screen exactly.
+    Stretch,
+    /// Center the image without scaling.
+    Center,
+    /// Tile the image across the screen.
+    Tile,
 }
 
 /// Change in window or column size.

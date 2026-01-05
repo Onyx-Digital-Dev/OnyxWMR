@@ -10,6 +10,7 @@
 mod bar;
 mod colors;
 mod ipc;
+mod text;
 mod wayland;
 
 use anyhow::Result;
@@ -37,6 +38,13 @@ fn main() -> Result<()> {
         BAR_HEIGHT,
         total_bar_height()
     );
+
+    // Check text rendering
+    if text::is_available() {
+        info!("Text rendering enabled");
+    } else {
+        warn!("Text rendering disabled (no font found)");
+    }
 
     // Create bar state
     let bar_state = Rc::new(RefCell::new(BarState::default()));

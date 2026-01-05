@@ -8,6 +8,7 @@
 //! - Inter font, clean/professional
 
 use crate::colors::*;
+use crate::text;
 use chrono::Local;
 use tiny_skia::{
     FillRule, GradientStop, LinearGradient, Paint, PathBuilder, Pixmap, Point, Rect, SpreadMode,
@@ -329,37 +330,79 @@ fn draw_window_dots(
 
 /// Draw "Onyx OSV" branding in center
 fn draw_branding(pixmap: &mut Pixmap, bar_x: f32, bar_y: f32, bar_width: f32, bar_height: f32) {
-    // Placeholder: draw a subtle centered indicator
-    // Full text rendering requires fontdue integration with Inter font
-    let indicator_width = 60.0_f32;
-    let indicator_height = 2.0_f32;
-    let x = bar_x + (bar_width - indicator_width) / 2.0;
-    let y = bar_y + (bar_height - indicator_height) / 2.0;
+    let center_x = bar_x + bar_width / 2.0;
+    // Baseline positioned in center of bar
+    let baseline_y = bar_y + bar_height / 2.0 + BRAND_FONT_SIZE as f32 / 3.0;
 
-    if let Some(rect) = Rect::from_xywh(x, y, indicator_width, indicator_height) {
-        let mut paint = Paint::default();
-        paint.set_color(BRAND_TEXT.to_skia());
-        paint.anti_alias = true;
-        pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+    if let Some(renderer) = text::get_renderer() {
+        renderer.render_text_centered(
+            pixmap,
+            "Onyx OSV",
+            center_x,
+            baseline_y,
+            BRAND_FONT_SIZE as f32,
+            BRAND_TEXT,
+        );
+    } else {
+        // Fallback: draw a subtle centered indicator
+        let indicator_width = 60.0_f32;
+        let indicator_height = 2.0_f32;
+        let x = bar_x + (bar_width - indicator_width) / 2.0;
+        let y = bar_y + (bar_height - indicator_height) / 2.0;
+
+        if let Some(rect) = Rect::from_xywh(x, y, indicator_width, indicator_height) {
+            let mut paint = Paint::default();
+            paint.set_color(BRAND_TEXT.to_skia());
+            paint.anti_alias = true;
+            pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+        }
     }
 }
 
 /// Draw time on the right
 fn draw_time(pixmap: &mut Pixmap, right_edge: f32, bar_y: f32, bar_height: f32) {
     let now = Local::now();
-    let _time_str = now.format("%H:%M").to_string();
+    let time_str = now.format("%H:%M").to_string();
+    let date_str = now.format("%a %d").to_string();
 
-    // Placeholder: subtle time indicator
-    let indicator_width = 40.0_f32;
-    let indicator_height = 2.0_f32;
-    let x = right_edge - indicator_width - CAPSULE_PADDING as f32;
-    let y = bar_y + (bar_height - indicator_height) / 2.0;
+    // Baseline positioned in center of bar
+    let baseline_y = bar_y + bar_height / 2.0 + TIME_FONT_SIZE as f32 / 3.0;
+    let padding = CAPSULE_PADDING as f32 + 4.0;
 
-    if let Some(rect) = Rect::from_xywh(x, y, indicator_width, indicator_height) {
-        let mut paint = Paint::default();
-        paint.set_color(TIME_TEXT.to_skia());
-        paint.anti_alias = true;
-        pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+    if let Some(renderer) = text::get_renderer() {
+        // Draw time
+        renderer.render_text_right(
+            pixmap,
+            &time_str,
+            right_edge - padding,
+            baseline_y,
+            TIME_FONT_SIZE as f32,
+            TIME_TEXT,
+        );
+
+        // Draw date to the left of time
+        let time_width = renderer.measure_text(&time_str, TIME_FONT_SIZE as f32);
+        renderer.render_text_right(
+            pixmap,
+            &date_str,
+            right_edge - padding - time_width - 8.0,
+            baseline_y,
+            TIME_FONT_SIZE as f32,
+            DATE_TEXT,
+        );
+    } else {
+        // Fallback: subtle time indicator
+        let indicator_width = 40.0_f32;
+        let indicator_height = 2.0_f32;
+        let x = right_edge - indicator_width - padding;
+        let y = bar_y + (bar_height - indicator_height) / 2.0;
+
+        if let Some(rect) = Rect::from_xywh(x, y, indicator_width, indicator_height) {
+            let mut paint = Paint::default();
+            paint.set_color(TIME_TEXT.to_skia());
+            paint.anti_alias = true;
+            pixmap.fill_rect(rect, &paint, Transform::identity(), None);
+        }
     }
 }
 
