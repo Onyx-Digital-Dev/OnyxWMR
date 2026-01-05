@@ -19,3 +19,9 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+# System info
+whoami = "1.5"
+dirs = "5.0"
+libc = "0.2"
+shellexpand = "3.1"
