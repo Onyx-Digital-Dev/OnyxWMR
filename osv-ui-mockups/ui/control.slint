@@ -3,7 +3,7 @@
 
 import { OsvTheme } from "theme.slint";
 import { OsvToggle, OsvSlider, OsvCard, OsvProgressBar, OsvDropdown } from "components.slint";
-import { IconGauge, IconMonitor, IconVolume2, IconSpeaker, IconPower, IconZap, IconBluetooth, IconPalette, IconImage, IconInfo, IconUser, IconCpu, IconHardDrive, IconGlobe, IconActivity, IconArrowUp, IconArrowDown, IconRoute, IconWifi, IconShield, IconSun, IconMoon, IconBattery, IconBatteryCharging, IconClock } from "icons.slint";
+import { IconGauge, IconMonitor, IconVolume2, IconSpeaker, IconPower, IconZap, IconBluetooth, IconPalette, IconImage, IconInfo, IconUser, IconCpu, IconHardDrive, IconGlobe, IconActivity, IconArrowUp, IconArrowDown, IconRoute, IconWifi, IconShield, IconSun, IconMoon, IconBattery, IconBatteryCharging, IconClock, IconCalendar, IconMapPin, IconKeyboard, IconMouse, IconCheck, IconRefresh } from "icons.slint";
 
 // Navigation section item
 component NavItem {
@@ -50,6 +50,9 @@ component NavItem {
                 if icon-type == "user": IconUser { size: OsvTheme.icon-md; icon-color: ic; }
                 if icon-type == "battery": IconBattery { size: OsvTheme.icon-md; icon-color: ic; }
                 if icon-type == "clock": IconClock { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "calendar": IconCalendar { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "keyboard": IconKeyboard { size: OsvTheme.icon-md; icon-color: ic; }
+                if icon-type == "mouse": IconMouse { size: OsvTheme.icon-md; icon-color: ic; }
             }
             
             // Label
@@ -236,9 +239,42 @@ export component OsvControl {
     in property <string> battery-manufacturer: "Unknown";
     in property <int> battery-cycle-count: 342;
 
+    // Date & Time data
+    in property <string> current-date: "Monday, January 6, 2025";
+    in property <string> current-time: "14:30";
+    in property <string> timezone: "America/New_York";
+    in property <string> timezone-offset: "UTC-05:00";
+    in property <bool> use-24h-format: true;
+    in property <bool> ntp-enabled: true;
+    in property <bool> ntp-synchronized: true;
+
+    // Keyboard data
+    in property <string> keyboard-layout: "English (US)";
+    in property <string> keyboard-variant: "Default";
+    in property <int> key-repeat-delay: 500;
+    in property <int> key-repeat-rate: 25;
+    in property <bool> caps-lock-indicator: true;
+
+    // Mouse/Touchpad data
+    in property <float> mouse-speed: 0.5;
+    in property <bool> mouse-natural-scroll: false;
+    in property <bool> mouse-left-handed: false;
+    in property <float> touchpad-speed: 0.5;
+    in property <bool> touchpad-tap-to-click: true;
+    in property <bool> touchpad-natural-scroll: true;
+    in property <bool> touchpad-two-finger-scroll: true;
+
     callback section-changed(int);
     callback brightness-changed(float);
     callback night-mode-toggled(bool);
+    callback time-format-toggled(bool);
+    callback ntp-toggled(bool);
+    callback key-repeat-delay-changed(int);
+    callback key-repeat-rate-changed(int);
+    callback mouse-speed-changed(float);
+    callback natural-scroll-toggled(bool);
+    callback tap-to-click-toggled(bool);
+    callback touchpad-speed-changed(float);
     
     width: 800px;
     height: 600px;
@@ -320,24 +356,45 @@ export component OsvControl {
                     }
 
                     NavItem {
-                        label: "Bluetooth";
-                        icon-type: "bluetooth";
+                        label: "Date & Time";
+                        icon-type: "calendar";
                         active: active-section == 6;
                         clicked => { section-changed(6); }
                     }
-                    
+
                     NavItem {
-                        label: "Appearance";
-                        icon-type: "palette";
+                        label: "Keyboard";
+                        icon-type: "keyboard";
                         active: active-section == 7;
                         clicked => { section-changed(7); }
                     }
 
                     NavItem {
-                        label: "About";
-                        icon-type: "info";
+                        label: "Mouse";
+                        icon-type: "mouse";
                         active: active-section == 8;
                         clicked => { section-changed(8); }
+                    }
+
+                    NavItem {
+                        label: "Bluetooth";
+                        icon-type: "bluetooth";
+                        active: active-section == 9;
+                        clicked => { section-changed(9); }
+                    }
+
+                    NavItem {
+                        label: "Appearance";
+                        icon-type: "palette";
+                        active: active-section == 10;
+                        clicked => { section-changed(10); }
+                    }
+
+                    NavItem {
+                        label: "About";
+                        icon-type: "info";
+                        active: active-section == 11;
+                        clicked => { section-changed(11); }
                     }
                     
                     // Spacer
@@ -757,16 +814,423 @@ export component OsvControl {
                     Rectangle { vertical-stretch: 1; }
                 }
 
-                // Placeholder for other sections
-                if active-section != 0 && active-section != 2 && active-section != 5: VerticalLayout {
+                // Date & Time section (Section 6)
+                if active-section == 6: VerticalLayout {
+                    padding: OsvTheme.space-md;
+                    spacing: OsvTheme.space-md;
+
+                    Text {
+                        text: "DATE & TIME";
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-label;
+                        letter-spacing: 1px;
+                    }
+
+                    // Current time display card
+                    OsvCard {
+                        title: "CURRENT TIME";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-sm;
+
+                            HorizontalLayout {
+                                spacing: OsvTheme.space-lg;
+
+                                // Large clock icon
+                                Rectangle {
+                                    width: 64px;
+                                    height: 64px;
+                                    background: OsvTheme.dark;
+                                    border-radius: OsvTheme.radius-lg;
+
+                                    IconClock {
+                                        x: 16px;
+                                        y: 16px;
+                                        size: 32px;
+                                        icon-color: OsvTheme.accent;
+                                    }
+                                }
+
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: OsvTheme.space-xs;
+
+                                    Text {
+                                        text: current-time;
+                                        color: OsvTheme.bright;
+                                        font-size: 32px;
+                                        font-weight: 600;
+                                    }
+
+                                    Text {
+                                        text: current-date;
+                                        color: OsvTheme.muted;
+                                        font-size: OsvTheme.font-body;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Timezone card
+                    OsvCard {
+                        title: "TIMEZONE";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-sm;
+
+                            HorizontalLayout {
+                                spacing: OsvTheme.space-md;
+
+                                IconMapPin {
+                                    size: 20px;
+                                    icon-color: OsvTheme.muted;
+                                }
+
+                                Text {
+                                    text: timezone;
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: timezone-offset;
+                                    color: OsvTheme.muted;
+                                    font-size: OsvTheme.font-body;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+
+                    // Time format card
+                    OsvCard {
+                        title: "FORMAT";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-md;
+
+                            HorizontalLayout {
+                                Text {
+                                    text: "Use 24-hour format";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+
+                                OsvToggle {
+                                    checked: use-24h-format;
+                                    toggled(v) => { time-format-toggled(v); }
+                                }
+                            }
+                        }
+                    }
+
+                    // NTP synchronization card
+                    OsvCard {
+                        title: "AUTOMATIC DATE & TIME";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-md;
+
+                            HorizontalLayout {
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: 4px;
+
+                                    Text {
+                                        text: "Network Time Synchronization";
+                                        color: OsvTheme.text;
+                                        font-size: OsvTheme.font-body;
+                                    }
+                                    Text {
+                                        text: ntp-synchronized ? "Synchronized" : "Not synchronized";
+                                        color: ntp-synchronized ? OsvTheme.success : OsvTheme.warning;
+                                        font-size: OsvTheme.font-label;
+                                    }
+                                }
+
+                                OsvToggle {
+                                    checked: ntp-enabled;
+                                    toggled(v) => { ntp-toggled(v); }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+                }
+
+                // Keyboard section (Section 7)
+                if active-section == 7: VerticalLayout {
+                    padding: OsvTheme.space-md;
+                    spacing: OsvTheme.space-md;
+
+                    Text {
+                        text: "KEYBOARD";
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-label;
+                        letter-spacing: 1px;
+                    }
+
+                    // Layout card
+                    OsvCard {
+                        title: "LAYOUT";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-sm;
+
+                            HorizontalLayout {
+                                Text { text: "Layout"; color: OsvTheme.muted; font-size: OsvTheme.font-body; horizontal-stretch: 1; }
+                                Text { text: keyboard-layout; color: OsvTheme.text; font-size: OsvTheme.font-body; }
+                            }
+
+                            HorizontalLayout {
+                                Text { text: "Variant"; color: OsvTheme.muted; font-size: OsvTheme.font-body; horizontal-stretch: 1; }
+                                Text { text: keyboard-variant; color: OsvTheme.text; font-size: OsvTheme.font-body; }
+                            }
+                        }
+                    }
+
+                    // Key repeat card
+                    OsvCard {
+                        title: "KEY REPEAT";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-md;
+
+                            HorizontalLayout {
+                                spacing: OsvTheme.space-md;
+
+                                Text {
+                                    text: "Delay";
+                                    color: OsvTheme.muted;
+                                    font-size: OsvTheme.font-body;
+                                    width: 60px;
+                                }
+
+                                OsvSlider {
+                                    horizontal-stretch: 1;
+                                    value: key-repeat-delay / 1000.0;
+                                    min: 0.1;
+                                    max: 1.0;
+                                }
+
+                                Text {
+                                    text: "\{key-repeat-delay}ms";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    width: 60px;
+                                    horizontal-alignment: right;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: OsvTheme.space-md;
+
+                                Text {
+                                    text: "Rate";
+                                    color: OsvTheme.muted;
+                                    font-size: OsvTheme.font-body;
+                                    width: 60px;
+                                }
+
+                                OsvSlider {
+                                    horizontal-stretch: 1;
+                                    value: key-repeat-rate / 50.0;
+                                    min: 0.1;
+                                    max: 1.0;
+                                }
+
+                                Text {
+                                    text: "\{key-repeat-rate}/s";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    width: 60px;
+                                    horizontal-alignment: right;
+                                }
+                            }
+                        }
+                    }
+
+                    // Options card
+                    OsvCard {
+                        title: "OPTIONS";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-md;
+
+                            HorizontalLayout {
+                                Text {
+                                    text: "Caps Lock indicator";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+
+                                OsvToggle {
+                                    checked: caps-lock-indicator;
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+                }
+
+                // Mouse/Touchpad section (Section 8)
+                if active-section == 8: VerticalLayout {
+                    padding: OsvTheme.space-md;
+                    spacing: OsvTheme.space-md;
+
+                    Text {
+                        text: "MOUSE & TOUCHPAD";
+                        color: OsvTheme.muted;
+                        font-size: OsvTheme.font-label;
+                        letter-spacing: 1px;
+                    }
+
+                    // Mouse card
+                    OsvCard {
+                        title: "MOUSE";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-md;
+
+                            HorizontalLayout {
+                                spacing: OsvTheme.space-md;
+
+                                Text {
+                                    text: "Speed";
+                                    color: OsvTheme.muted;
+                                    font-size: OsvTheme.font-body;
+                                    width: 80px;
+                                }
+
+                                OsvSlider {
+                                    horizontal-stretch: 1;
+                                    value: mouse-speed;
+                                    changed(v) => { mouse-speed-changed(v); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                Text {
+                                    text: "Natural scrolling";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+
+                                OsvToggle {
+                                    checked: mouse-natural-scroll;
+                                    toggled(v) => { natural-scroll-toggled(v); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                Text {
+                                    text: "Left-handed mode";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+
+                                OsvToggle {
+                                    checked: mouse-left-handed;
+                                }
+                            }
+                        }
+                    }
+
+                    // Touchpad card
+                    OsvCard {
+                        title: "TOUCHPAD";
+
+                        VerticalLayout {
+                            spacing: OsvTheme.space-md;
+
+                            HorizontalLayout {
+                                spacing: OsvTheme.space-md;
+
+                                Text {
+                                    text: "Speed";
+                                    color: OsvTheme.muted;
+                                    font-size: OsvTheme.font-body;
+                                    width: 80px;
+                                }
+
+                                OsvSlider {
+                                    horizontal-stretch: 1;
+                                    value: touchpad-speed;
+                                    changed(v) => { touchpad-speed-changed(v); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                Text {
+                                    text: "Tap to click";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+
+                                OsvToggle {
+                                    checked: touchpad-tap-to-click;
+                                    toggled(v) => { tap-to-click-toggled(v); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                Text {
+                                    text: "Natural scrolling";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+
+                                OsvToggle {
+                                    checked: touchpad-natural-scroll;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                Text {
+                                    text: "Two-finger scroll";
+                                    color: OsvTheme.text;
+                                    font-size: OsvTheme.font-body;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+
+                                OsvToggle {
+                                    checked: touchpad-two-finger-scroll;
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+                }
+
+                // Placeholder for remaining sections
+                if active-section != 0 && active-section != 2 && active-section != 5 && active-section != 6 && active-section != 7 && active-section != 8: VerticalLayout {
                     padding: OsvTheme.space-md;
 
                     Text {
                         text: active-section == 1 ? "NETWORK" :
                               active-section == 3 ? "SOUND" :
                               active-section == 4 ? "POWER" :
-                              active-section == 6 ? "BLUETOOTH" :
-                              active-section == 7 ? "APPEARANCE" :
+                              active-section == 9 ? "BLUETOOTH" :
+                              active-section == 10 ? "APPEARANCE" :
                               "ABOUT";
                         color: OsvTheme.muted;
                         font-size: OsvTheme.font-label;
@@ -814,5 +1278,24 @@ export component OsvControlWindow inherits Window {
         battery-technology: "Li-ion";
         battery-manufacturer: "Samsung SDI";
         battery-cycle-count: 287;
+        current-date: "Monday, January 6, 2025";
+        current-time: "14:30";
+        timezone: "America/New_York";
+        timezone-offset: "UTC-05:00";
+        use-24h-format: true;
+        ntp-enabled: true;
+        ntp-synchronized: true;
+        keyboard-layout: "English (US)";
+        keyboard-variant: "Default";
+        key-repeat-delay: 500;
+        key-repeat-rate: 25;
+        caps-lock-indicator: true;
+        mouse-speed: 0.5;
+        mouse-natural-scroll: false;
+        mouse-left-handed: false;
+        touchpad-speed: 0.5;
+        touchpad-tap-to-click: true;
+        touchpad-natural-scroll: true;
+        touchpad-two-finger-scroll: true;
     }
 }

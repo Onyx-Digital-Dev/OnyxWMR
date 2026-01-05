@@ -5,7 +5,10 @@
 
 pub mod applets;
 pub mod battery;
+pub mod datetime;
 pub mod display;
+pub mod input;
+pub mod keyboard;
 pub mod network;
 pub mod power;
 pub mod system;
