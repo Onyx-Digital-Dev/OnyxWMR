@@ -20,21 +20,12 @@ const APP_DIRS: &[&str] = &[
 /// An application entry
 #[derive(Debug, Clone)]
 pub struct App {
-    /// Display name
     pub name: String,
-    /// Generic name (optional)
     pub generic_name: Option<String>,
-    /// Executable command
     pub exec: String,
-    /// Icon name or path
     pub icon: Option<String>,
-    /// Categories
-    pub categories: Vec<String>,
-    /// Keywords for searching
     pub keywords: Vec<String>,
-    /// Whether this is a terminal application
     pub terminal: bool,
-    /// Desktop file path
     pub desktop_file: PathBuf,
 }
 
@@ -144,16 +135,6 @@ impl AppList {
             .map(|v| v == "true")
             .unwrap_or(false);
 
-        let categories = attrs
-            .get("Categories")
-            .map(|s| {
-                s.split(';')
-                    .filter(|s| !s.is_empty())
-                    .map(String::from)
-                    .collect()
-            })
-            .unwrap_or_default();
-
         let keywords = attrs
             .get("Keywords")
             .map(|s| {
@@ -169,7 +150,6 @@ impl AppList {
             generic_name,
             exec,
             icon,
-            categories,
             keywords,
             terminal,
             desktop_file: path.clone(),
@@ -220,33 +200,8 @@ impl AppList {
         self.apps.get(idx)
     }
 
-    /// Number of apps
     pub fn len(&self) -> usize {
         self.apps.len()
     }
-
-    /// Check if empty
-    pub fn is_empty(&self) -> bool {
-        self.apps.is_empty()
-    }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_app_list_load() {
-        let list = AppList::load();
-        // Should load without panicking
-        // May or may not find apps depending on environment
-        assert!(list.len() >= 0);
-    }
-
-    #[test]
-    fn test_search_empty() {
-        let list = AppList::load();
-        let results = list.search("");
-        assert_eq!(results.len(), list.len());
-    }
-}

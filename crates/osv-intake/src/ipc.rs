@@ -53,14 +53,15 @@ pub struct AppInfo {
 }
 
 /// Client for communicating with osv-intake-daemon
-/// Supports persistent connections for multiple requests
+/// Used by osv-intake (client), not osv-intake-daemon
+#[allow(dead_code)]
 pub struct DaemonClient {
     reader: BufReader<UnixStream>,
     writer: UnixStream,
 }
 
+#[allow(dead_code)]
 impl DaemonClient {
-    /// Connect to the daemon
     pub fn connect() -> anyhow::Result<Self> {
         let writer = UnixStream::connect(SOCKET_PATH)?;
         writer.set_read_timeout(Some(std::time::Duration::from_secs(2)))?;

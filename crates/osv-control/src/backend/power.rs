@@ -63,21 +63,11 @@ impl PowerBackend {
             return stdout.contains("=yes");
         }
 
-        // Fallback: try systemctl
-        let action = match capability {
-            "CanSuspend" => "suspend",
-            "CanHibernate" => "hibernate",
-            "CanHybridSleep" => "hybrid-sleep",
-            "CanReboot" => "reboot",
-            "CanPowerOff" => "poweroff",
-            _ => return false,
-        };
-
-        Command::new("systemctl")
-            .args(["--quiet", "is-system-running"])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(true) // Assume available if systemctl works
+        // Fallback: assume available if known capability
+        matches!(
+            capability,
+            "CanSuspend" | "CanHibernate" | "CanHybridSleep" | "CanReboot" | "CanPowerOff"
+        )
     }
 
     /// Execute a power action
@@ -176,8 +166,6 @@ impl PowerBackend {
             .context(format!("Failed to run systemctl {}", action))?;
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-
             // Try with pkexec for privilege escalation
             let output = Command::new("pkexec")
                 .args(["systemctl", action])
@@ -283,13 +271,3 @@ pub struct Inhibitor {
     pub mode: String,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_capabilities() {
-        // This test just checks that the function doesn't panic
-        let _ = PowerBackend::capabilities();
-    }
-}

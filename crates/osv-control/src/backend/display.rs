@@ -444,9 +444,7 @@ impl DisplayBackend {
     }
 }
 
-// ============================================================================
 // Brightness Control
-// ============================================================================
 
 /// Brightness information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -622,9 +620,7 @@ impl BrightnessBackend {
     }
 }
 
-// ============================================================================
 // Night Mode / Color Temperature
-// ============================================================================
 
 /// Night mode status
 #[derive(Debug, Clone, Serialize, Deserialize)]

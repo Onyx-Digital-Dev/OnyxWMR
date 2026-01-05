@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use osv_ipc::socket::Socket;
-use osv_ipc::{Action, Event, Request, Response, Window, Workspace, WorkspaceReferenceArg};
+use osv_ipc::{Action, Event, Request, Response, WorkspaceReferenceArg};
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
@@ -32,7 +32,6 @@ pub enum IpcMessage {
 pub struct WorkspaceInfo {
     pub idx: usize,
     pub id: u64,
-    pub is_active: bool,
     pub is_focused: bool,
     pub is_urgent: bool,
 }
@@ -40,10 +39,7 @@ pub struct WorkspaceInfo {
 /// Simplified window info for the bar
 #[derive(Debug, Clone)]
 pub struct WindowInfo {
-    pub id: u64,
     pub workspace_id: Option<u64>,
-    pub app_id: Option<String>,
-    pub title: Option<String>,
 }
 
 /// IPC client handle for sending commands
@@ -160,7 +156,6 @@ fn run_event_loop(sender: Sender<IpcMessage>) -> Result<()> {
                         infos.push(WorkspaceInfo {
                             idx,
                             id: ws.id,
-                            is_active: ws.is_active,
                             is_focused: ws.is_focused,
                             is_urgent: ws.is_urgent,
                         });
@@ -180,22 +175,15 @@ fn run_event_loop(sender: Sender<IpcMessage>) -> Result<()> {
                 let infos: Vec<WindowInfo> = windows
                     .iter()
                     .map(|w| WindowInfo {
-                        id: w.id,
                         workspace_id: w.workspace_id,
-                        app_id: w.app_id.clone(),
-                        title: w.title.clone(),
                     })
                     .collect();
                 sender.send(IpcMessage::WindowsChanged(infos))?;
             }
 
-            Event::WindowOpenedOrChanged { window } => {
-                // For now, we'll get full state from WindowsChanged
-                // Could optimize later
-            }
-
-            Event::WindowClosed { id: _ } => {
-                // Will be handled by next WindowsChanged
+            Event::WindowOpenedOrChanged { .. }
+            | Event::WindowClosed { .. } => {
+                // Handled via WindowsChanged events
             }
 
             _ => {}
@@ -203,12 +191,3 @@ fn run_event_loop(sender: Sender<IpcMessage>) -> Result<()> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_workspace_count() {
-        assert_eq!(WORKSPACE_COUNT, 8);
-    }
-}

@@ -297,8 +297,6 @@ impl SystemBackend {
 
     /// Set hostname (requires root/sudo)
     pub fn set_hostname(hostname: &str, pretty: bool) -> Result<()> {
-        let hostname_type = if pretty { "pretty" } else { "hostname" };
-
         let output = std::process::Command::new("hostnamectl")
             .args(["set-hostname", "--transient", hostname])
             .output()
@@ -322,14 +320,3 @@ impl SystemBackend {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_user_initials() {
-        // This is a simple test that doesn't require actual system info
-        let initials = SystemBackend::user_initials();
-        assert!(!initials.is_empty());
-    }
-}

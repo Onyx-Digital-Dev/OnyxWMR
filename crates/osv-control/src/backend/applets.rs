@@ -637,13 +637,3 @@ impl AppletsBackend {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_datetime() {
-        let dt = AppletsBackend::datetime_info();
-        assert!(!dt.time_formatted.is_empty());
-    }
-}

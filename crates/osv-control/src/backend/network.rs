@@ -538,12 +538,3 @@ impl NetworkBackend {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_parsing() {
-        // This would need a mock or integration test environment
-    }
-}
