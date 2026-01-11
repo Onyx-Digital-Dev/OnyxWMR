@@ -25,12 +25,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf203f9d3bd8f29f98833d1fbef628df18f759248a547e7e01cfbf63cda36a99"
 
 [[package]]
+name = "accesskit"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3eca13c82f9a5cd813120b2e9b6a5d10532c6e4cd140c295cebd1f770095c8a5"
+
+[[package]]
 name = "accesskit_atspi_common"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "890d241cf51fc784f0ac5ac34dfc847421f8d39da6c7c91a0fcc987db62a8267"
 dependencies = [
- "accesskit",
+ "accesskit 0.21.1",
  "accesskit_consumer",
  "atspi-common",
  "serde",
@@ -44,7 +50,7 @@ version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db81010a6895d8707f9072e6ce98070579b43b717193d2614014abd5cb17dd43"
 dependencies = [
- "accesskit",
+ "accesskit 0.21.1",
  "hashbrown 0.15.5",
 ]
 
@@ -54,7 +60,7 @@ version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0089e5c0ac0ca281e13ea374773898d9354cc28d15af9f0f7394d44a495b575"
 dependencies = [
- "accesskit",
+ "accesskit 0.21.1",
  "accesskit_consumer",
  "hashbrown 0.15.5",
  "objc2 0.5.2",
@@ -68,7 +74,7 @@ version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "301e55b39cfc15d9c48943ce5f572204a551646700d0e8efa424585f94fec528"
 dependencies = [
- "accesskit",
+ "accesskit 0.21.1",
  "accesskit_atspi_common",
  "async-channel",
  "async-executor",
@@ -86,7 +92,7 @@ version = "0.29.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2d63dd5041e49c363d83f5419a896ecb074d309c414036f616dc0b04faca971"
 dependencies = [
- "accesskit",
+ "accesskit 0.21.1",
  "accesskit_consumer",
  "hashbrown 0.15.5",
  "static_assertions",
@@ -100,7 +106,7 @@ version = "0.29.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8cfabe59d0eaca7412bfb1f70198dd31e3b0496fee7e15b066f9c36a1a140a0"
 dependencies = [
- "accesskit",
+ "accesskit 0.21.1",
  "accesskit_macos",
  "accesskit_unix",
  "accesskit_windows",
@@ -2463,7 +2469,7 @@ version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69bf9167fb1165942ef1f034e039645b60b07b23c0c76069cb83595f979243a4"
 dependencies = [
- "accesskit",
+ "accesskit 0.21.1",
  "accesskit_winit",
  "bytemuck",
  "cfg-if",
@@ -4103,7 +4109,7 @@ dependencies = [
 name = "osvwm"
 version = "0.1.0"
 dependencies = [
- "accesskit",
+ "accesskit 0.22.0",
  "accesskit_unix",
  "anyhow",
  "approx 0.5.1",
